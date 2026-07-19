@@ -11,8 +11,8 @@ android {
         applicationId "com.fm.centinelaip"
         minSdk 29
         targetSdk 35
-        versionCode 6
-        versionName "0.4.2"
+        versionCode 7
+        versionName "0.5.0-alpha01"
 
         ndk {
             // APK optimizada para teléfonos Android modernos.
@@ -38,6 +38,10 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
     packaging {
         resources {
             excludes += ["META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*"]
@@ -56,4 +60,6 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-rtsp:1.9.4"
     implementation "androidx.media3:media3-ui:1.9.4"
     implementation "com.microsoft.onnxruntime:onnxruntime-android:1.27.0"
+
+    testImplementation "junit:junit:4.13.2"
 }
