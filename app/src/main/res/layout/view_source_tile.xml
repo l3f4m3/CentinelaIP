@@ -8,6 +8,7 @@
     android:padding="8dp">
 
     <LinearLayout
+        android:id="@+id/tileHeader"
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:gravity="center_vertical"
@@ -107,6 +108,7 @@
     </FrameLayout>
 
     <LinearLayout
+        android:id="@+id/tileActions"
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:layout_marginTop="6dp"
