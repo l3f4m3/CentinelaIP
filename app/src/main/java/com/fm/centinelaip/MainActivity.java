@@ -13,12 +13,15 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.view.GestureDetector;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -60,13 +63,20 @@ public final class MainActivity extends ComponentActivity {
 
     private GridLayout sourcesGrid;
     private LinearLayout mainEmptyState;
+    private FrameLayout focusOverlay;
+    private FrameLayout focusFeedHost;
     private TextView sourceSummary;
     private TextView globalConnectionBadge;
     private TextView aiBadge;
     private TextView modelBadge;
     private TextView schedulerBadge;
+    private TextView focusTitle;
+    private TextView focusStatus;
+    private TextView focusCounter;
     private Button connectAllButton;
     private Button aiButton;
+    private Button focusPreviousButton;
+    private Button focusNextButton;
 
     private SourceStore sourceStore;
     private ModelStore modelStore;
@@ -85,6 +95,7 @@ public final class MainActivity extends ComponentActivity {
     private boolean activityVisible;
     private boolean allStopped;
     private int roundRobinIndex;
+    private FeedController focusedFeed;
 
     private final Runnable inferenceLoop = new Runnable() {
         @Override public void run() {
@@ -121,6 +132,9 @@ public final class MainActivity extends ComponentActivity {
                 startActivity(new Intent(this, EventsActivity.class)));
         connectAllButton.setOnClickListener(view -> toggleAll());
         aiButton.setOnClickListener(view -> toggleAi());
+        findViewById(R.id.focusExitButton).setOnClickListener(view -> exitFocusMode());
+        focusPreviousButton.setOnClickListener(view -> switchFocusedFeed(-1));
+        focusNextButton.setOnClickListener(view -> switchFocusedFeed(1));
 
         initDetector();
         rebuildMosaic();
@@ -129,40 +143,157 @@ public final class MainActivity extends ComponentActivity {
     private void bindViews() {
         sourcesGrid = findViewById(R.id.sourcesGrid);
         mainEmptyState = findViewById(R.id.mainEmptyState);
+        focusOverlay = findViewById(R.id.focusOverlay);
+        focusFeedHost = findViewById(R.id.focusFeedHost);
         sourceSummary = findViewById(R.id.sourceSummary);
         globalConnectionBadge = findViewById(R.id.globalConnectionBadge);
         aiBadge = findViewById(R.id.aiBadge);
         modelBadge = findViewById(R.id.modelBadge);
         schedulerBadge = findViewById(R.id.schedulerBadge);
+        focusTitle = findViewById(R.id.focusTitle);
+        focusStatus = findViewById(R.id.focusStatus);
+        focusCounter = findViewById(R.id.focusCounter);
         connectAllButton = findViewById(R.id.connectAllButton);
         aiButton = findViewById(R.id.aiButton);
+        focusPreviousButton = findViewById(R.id.focusPreviousButton);
+        focusNextButton = findViewById(R.id.focusNextButton);
     }
 
     private void rebuildMosaic() {
+        exitFocusMode();
         releaseFeeds();
         sourcesGrid.removeAllViews();
         List<CameraConfig> configured = sourceStore.loadAll();
         List<CameraConfig> enabled = new ArrayList<>();
         for (CameraConfig source : configured) if (source.enabled) enabled.add(source);
 
-        int columns = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
-                || getResources().getConfiguration().smallestScreenWidthDp >= 600 ? 2 : 1;
-        sourcesGrid.setColumnCount(columns);
+        updateMosaicColumns();
         for (CameraConfig source : enabled) {
             FeedController feed = new FeedController(source);
             feeds.add(feed);
-            GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-            params.width = 0;
-            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
-            params.setMargins(dp(5), dp(5), dp(5), dp(5));
-            sourcesGrid.addView(feed.root, params);
+            sourcesGrid.addView(feed.root, newMosaicParams());
         }
         mainEmptyState.setVisibility(feeds.isEmpty() ? View.VISIBLE : View.GONE);
         sourceSummary.setText(feeds.isEmpty() ? "Mosaico sin fuentes"
-                : feeds.size() + (feeds.size() == 1 ? " fuente activa" : " fuentes simultáneas"));
+                : feeds.size() == 1 ? "1 fuente · pantalla completa"
+                : feeds.size() + " fuentes simultáneas · doble toque para ampliar");
         updateGlobalStatus();
         if (!feeds.isEmpty() && !allStopped && activityVisible) startAll();
+        if (feeds.size() == 1) {
+            FeedController onlyFeed = feeds.get(0);
+            mainHandler.post(() -> {
+                if (feeds.size() == 1 && feeds.contains(onlyFeed)) enterFocusMode(onlyFeed);
+            });
+        }
+    }
+
+    private void updateMosaicColumns() {
+        int columns = getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_LANDSCAPE
+                || getResources().getConfiguration().smallestScreenWidthDp >= 600 ? 2 : 1;
+        sourcesGrid.setColumnCount(columns);
+        for (FeedController feed : feeds) {
+            if (feed.root.getParent() == sourcesGrid) feed.root.setLayoutParams(newMosaicParams());
+        }
+    }
+
+    private GridLayout.LayoutParams newMosaicParams() {
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+        params.width = 0;
+        params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+        params.setMargins(dp(5), dp(5), dp(5), dp(5));
+        return params;
+    }
+
+    private void enterFocusMode(FeedController feed) {
+        if (feed == null || !feeds.contains(feed) || focusedFeed == feed) return;
+        if (focusedFeed != null) restoreFocusedFeedToGrid();
+        focusedFeed = feed;
+        ViewGroup parent = (ViewGroup) feed.root.getParent();
+        if (parent != null) parent.removeView(feed.root);
+        feed.setFocusedStyle(true);
+        focusFeedHost.removeAllViews();
+        focusFeedHost.addView(feed.root, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        focusOverlay.setVisibility(View.VISIBLE);
+        updateFocusLabels();
+        setImmersiveMode(true);
+    }
+
+    private void exitFocusMode() {
+        if (focusedFeed == null) return;
+        restoreFocusedFeedToGrid();
+        focusedFeed = null;
+        focusOverlay.setVisibility(View.GONE);
+        setImmersiveMode(false);
+        updateMosaicColumns();
+    }
+
+    private void restoreFocusedFeedToGrid() {
+        FeedController feed = focusedFeed;
+        if (feed == null) return;
+        ViewGroup parent = (ViewGroup) feed.root.getParent();
+        if (parent != null) parent.removeView(feed.root);
+        feed.setFocusedStyle(false);
+        int insertAt = 0;
+        int targetPosition = feeds.indexOf(feed);
+        for (int index = 0; index < targetPosition; index++) {
+            if (feeds.get(index).root.getParent() == sourcesGrid) insertAt++;
+        }
+        sourcesGrid.addView(feed.root, Math.min(insertAt, sourcesGrid.getChildCount()),
+                newMosaicParams());
+    }
+
+    private void switchFocusedFeed(int direction) {
+        if (focusedFeed == null || feeds.size() < 2) return;
+        int current = feeds.indexOf(focusedFeed);
+        int next = (current + direction + feeds.size()) % feeds.size();
+        enterFocusMode(feeds.get(next));
+    }
+
+    private void updateFocusLabels() {
+        if (focusedFeed == null) return;
+        int index = feeds.indexOf(focusedFeed);
+        focusTitle.setText(focusedFeed.config.name);
+        focusCounter.setText((index + 1) + " / " + feeds.size());
+        String value;
+        int color;
+        if (focusedFeed.state == FeedController.READY) {
+            value = "● EN VIVO";
+            color = R.color.primary;
+        } else if (focusedFeed.state == FeedController.CONNECTING) {
+            value = "● CONECTANDO";
+            color = R.color.warning;
+        } else if (focusedFeed.state == FeedController.ERROR) {
+            value = "● ERROR";
+            color = R.color.danger;
+        } else {
+            value = "● DETENIDA";
+            color = R.color.text_secondary;
+        }
+        focusStatus.setText(value);
+        focusStatus.setTextColor(getColor(color));
+        boolean multiple = feeds.size() > 1;
+        focusPreviousButton.setVisibility(multiple ? View.VISIBLE : View.INVISIBLE);
+        focusNextButton.setVisibility(multiple ? View.VISIBLE : View.INVISIBLE);
+        ((TextView) findViewById(R.id.focusHint)).setText(multiple
+                ? "Desliza para cambiar\nDoble toque para volver"
+                : "Doble toque para mostrar controles");
+    }
+
+    private void setImmersiveMode(boolean enabled) {
+        View decor = getWindow().getDecorView();
+        if (enabled) {
+            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        } else {
+            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
     }
 
     private void initDetector() {
@@ -362,6 +493,7 @@ public final class MainActivity extends ComponentActivity {
         connectAllButton.setText(active > 0 ? "■\nDetener todas" : "▶\nConectar todas");
         if (ready > 0) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        updateFocusLabels();
     }
 
     private String readablePlaybackError(PlaybackException error) {
@@ -432,6 +564,28 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override
+    public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        if (focusedFeed == null) updateMosaicColumns();
+        else {
+            updateFocusLabels();
+            setImmersiveMode(true);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && focusedFeed != null) setImmersiveMode(true);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (focusedFeed != null) exitFocusMode();
+        else super.onBackPressed();
+    }
+
+    @Override
     protected void onDestroy() {
         mainHandler.removeCallbacksAndMessages(null);
         releaseFeeds();
@@ -461,6 +615,9 @@ public final class MainActivity extends ComponentActivity {
 
         final CameraConfig config;
         final View root;
+        final View header;
+        final View actions;
+        final FrameLayout videoContainer;
         final PlayerView playerView;
         final PreviewView phonePreview;
         final DetectionOverlayView overlay;
@@ -481,6 +638,9 @@ public final class MainActivity extends ComponentActivity {
             root = LayoutInflater.from(MainActivity.this).inflate(R.layout.view_source_tile, sourcesGrid, false);
             ((TextView) root.findViewById(R.id.tileName)).setText(config.name);
             ((TextView) root.findViewById(R.id.tileSource)).setText(config.shortDescription());
+            header = root.findViewById(R.id.tileHeader);
+            actions = root.findViewById(R.id.tileActions);
+            videoContainer = root.findViewById(R.id.tileVideoContainer);
             statusText = root.findViewById(R.id.tileStatus);
             messageText = root.findViewById(R.id.tileMessage);
             inferenceText = root.findViewById(R.id.tileInference);
@@ -496,9 +656,53 @@ public final class MainActivity extends ComponentActivity {
                 }
             });
             root.findViewById(R.id.tileCaptureButton).setOnClickListener(view -> captureToGallery(this));
+            GestureDetector gestures = new GestureDetector(MainActivity.this,
+                    new GestureDetector.SimpleOnGestureListener() {
+                        @Override public boolean onDown(MotionEvent event) {
+                            return true;
+                        }
+
+                        @Override public boolean onDoubleTap(MotionEvent event) {
+                            if (focusedFeed == FeedController.this) exitFocusMode();
+                            else enterFocusMode(FeedController.this);
+                            return true;
+                        }
+
+                        @Override public boolean onFling(MotionEvent first, MotionEvent second,
+                                                         float velocityX, float velocityY) {
+                            if (focusedFeed != FeedController.this || feeds.size() < 2
+                                    || first == null || second == null) return false;
+                            float deltaX = second.getX() - first.getX();
+                            float deltaY = second.getY() - first.getY();
+                            if (Math.abs(deltaX) < dp(70) || Math.abs(deltaX) <= Math.abs(deltaY)
+                                    || Math.abs(velocityX) < 350f) return false;
+                            switchFocusedFeed(deltaX < 0 ? 1 : -1);
+                            return true;
+                        }
+                    });
+            View.OnTouchListener touchListener = (view, event) -> gestures.onTouchEvent(event);
+            videoContainer.setOnTouchListener(touchListener);
+            overlay.setOnTouchListener(touchListener);
+            messageText.setOnTouchListener(touchListener);
             if (!config.detectEnabled) inferenceText.setText("YOLO desactivado");
             showIdle(config.isConfigured() ? "Lista para conectar"
                     : "UUID guardado. Pulsa Fuentes y ejecuta Detectar cámara.");
+        }
+
+        void setFocusedStyle(boolean focused) {
+            header.setVisibility(focused ? View.GONE : View.VISIBLE);
+            actions.setVisibility(focused ? View.GONE : View.VISIBLE);
+            root.setPadding(focused ? 0 : dp(8), focused ? 0 : dp(8),
+                    focused ? 0 : dp(8), focused ? 0 : dp(8));
+            if (focused) {
+                root.setBackgroundColor(getColor(android.R.color.black));
+                videoContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            } else {
+                root.setBackgroundResource(R.drawable.bg_card);
+                videoContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, dp(210)));
+            }
         }
 
         void start() {
