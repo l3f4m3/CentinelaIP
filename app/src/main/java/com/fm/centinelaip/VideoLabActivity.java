@@ -429,7 +429,6 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
     @Override protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         if (player != null) {
-            player.clearVideoFrameMetadataListener();
             player.clearVideoTextureView(texture);
             player.release();
         }
