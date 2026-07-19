@@ -87,7 +87,9 @@ jobs:
           retention-days: 30
 
       - name: Publicar APK en GitHub Releases
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/')
+        if: >-
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/')) ||
+          (github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/'))
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
