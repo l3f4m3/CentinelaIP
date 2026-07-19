@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission
         android:name="android.permission.NEARBY_WIFI_DEVICES"
@@ -22,6 +23,12 @@
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.sensor.gyroscope"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false" />
 
     <application
         android:allowBackup="false"
@@ -35,7 +42,7 @@
         android:usesCleartextTraffic="true">
 
         <activity
-            android:name=".AdaDriveActivity"
+            android:name=".AdaDriveV2Activity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="true"
             android:label="ADA Drive"
@@ -45,6 +52,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".AdaDriveActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="false"
+            android:label="ADA Drive legacy"
+            android:screenOrientation="sensorLandscape" />
         <activity
             android:name=".VideoLabActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
