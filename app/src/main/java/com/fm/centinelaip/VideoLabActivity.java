@@ -4,12 +4,13 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.TextureView;
 import android.view.View;
@@ -38,10 +39,14 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
     private static final int PICK_VIDEO = 520;
     private static final String PREFS = "ada_video_lab";
     private static final String KEY_URI = "last_video_uri";
+    private static final float DETECTION_THRESHOLD = 0.20f;
+    private static final long INFERENCE_INTERVAL_MS = 320L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean inferenceRunning = new AtomicBoolean(false);
+    private final Object retrieverLock = new Object();
+    private final Object fpsLock = new Object();
 
     private TextureView texture;
     private DetectionOverlayView overlay;
@@ -52,23 +57,37 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
     private Button aiButton;
     private ExoPlayer player;
     private YoloDetector detector;
+    private MediaMetadataRetriever retriever;
     private Uri videoUri;
     private boolean aiEnabled = true;
     private boolean visible;
-    private long frameCount;
-    private long fpsStart;
-    private float fps;
+    private volatile boolean retrieverReady;
+    private volatile int encodedVideoWidth;
+    private volatile int encodedVideoHeight;
+    private volatile int displayVideoWidth;
+    private volatile int displayVideoHeight;
+    private volatile float videoFps;
+    private volatile float inferenceFps;
+    private long renderedFrames;
+    private long renderedWindowStartedNs;
+    private long inferenceFrames;
+    private long inferenceWindowStartedNs;
+    private long lastAnalyzedPositionMs = Long.MIN_VALUE;
 
     private final Runnable inferenceTask = new Runnable() {
         @Override public void run() {
-            boolean ready = visible && aiEnabled && detector != null && player != null
-                    && player.getPlaybackState() == Player.STATE_READY;
+            boolean ready = visible && aiEnabled && detector != null && retrieverReady
+                    && player != null && player.getPlaybackState() == Player.STATE_READY;
             if (ready && inferenceRunning.compareAndSet(false, true)) {
-                Bitmap frame = captureFrame(960);
-                if (frame == null) inferenceRunning.set(false);
-                else analyze(frame);
+                long positionMs = player.getCurrentPosition();
+                if (!player.isPlaying() && positionMs == lastAnalyzedPositionMs) {
+                    inferenceRunning.set(false);
+                } else {
+                    lastAnalyzedPositionMs = positionMs;
+                    analyzeAt(positionMs);
+                }
             }
-            if (visible) handler.postDelayed(this, 320L);
+            if (visible) handler.postDelayed(this, INFERENCE_INTERVAL_MS);
         }
     };
 
@@ -76,8 +95,9 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
         @Override public void run() {
             if (!visible) return;
             DeviceDiagnostics.Snapshot snapshot = DeviceDiagnostics.read(VideoLabActivity.this);
-            diagnosticsLabel.setText(String.format(Locale.US, "Render %.1f FPS · %s",
-                    fps, snapshot.compactLabel()));
+            diagnosticsLabel.setText(String.format(Locale.US,
+                    "Video %.1f FPS · IA %.1f FPS · %s",
+                    videoFps, inferenceFps, snapshot.compactLabel()));
             handler.postDelayed(this, 1_000L);
         }
     };
@@ -110,8 +130,8 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
         back.setOnClickListener(view -> finish());
         header.addView(back, new LinearLayout.LayoutParams(dp(52), dp(48)));
         TextView title = text("ADA · Laboratorio de video", 21, Color.WHITE, true);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         titleParams.leftMargin = dp(12);
         header.addView(title, titleParams);
         root.addView(header);
@@ -124,6 +144,7 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
         FrameLayout videoHost = new FrameLayout(this);
         videoHost.setBackgroundColor(Color.BLACK);
         texture = new TextureView(this);
+        texture.setOpaque(false);
         texture.setSurfaceTextureListener(this);
         videoHost.addView(texture, matchFrame());
         overlay = new DetectionOverlayView(this, null);
@@ -152,7 +173,8 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
         actions.addView(aiButton, actionParams(5, 0));
         root.addView(actions);
 
-        TextView warning = text("Prueba experimental: no usar para decisiones de conducción.",
+        TextView warning = text(
+                "Alta sensibilidad experimental: confirma visualmente cada detección.",
                 11, Color.rgb(100, 116, 139), false);
         warning.setPadding(0, dp(9), 0, 0);
         root.addView(warning);
@@ -162,10 +184,15 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
     private void createPlayer() {
         player = new ExoPlayer.Builder(this).build();
         player.setRepeatMode(Player.REPEAT_MODE_ALL);
+        player.setVideoFrameMetadataListener((presentationTimeUs, releaseTimeNs, format, mediaFormat) ->
+                recordRenderedFrame());
         player.addListener(new Player.Listener() {
             @Override public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_BUFFERING) setStatus("CARGANDO VIDEO", Color.rgb(245, 158, 11));
-                else if (state == Player.STATE_READY) setStatus("VIDEO LISTO", Color.rgb(34, 211, 238));
+                if (state == Player.STATE_BUFFERING) {
+                    setStatus("CARGANDO VIDEO", Color.rgb(245, 158, 11));
+                } else if (state == Player.STATE_READY) {
+                    setStatus("VIDEO LISTO", Color.rgb(34, 211, 238));
+                }
                 updatePlayButton();
             }
 
@@ -193,6 +220,7 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
                     aiEnabled = false;
                     aiButton.setText("IA no disponible");
                     aiButton.setEnabled(false);
+                    setStatus("MODELO NO DISPONIBLE", Color.rgb(239, 68, 68));
                 });
             }
         });
@@ -225,10 +253,59 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
     private void prepareVideo(boolean autoplay) {
         if (videoUri == null || player == null) return;
         overlay.clear();
+        lastAnalyzedPositionMs = Long.MIN_VALUE;
+        retrieverReady = false;
+        configureRetriever(videoUri);
         player.setMediaItem(MediaItem.fromUri(videoUri));
         player.prepare();
         player.setPlayWhenReady(autoplay);
         setStatus("PREPARANDO VIDEO", Color.rgb(245, 158, 11));
+    }
+
+    private void configureRetriever(Uri uri) {
+        executor.execute(() -> {
+            MediaMetadataRetriever next = new MediaMetadataRetriever();
+            try {
+                next.setDataSource(VideoLabActivity.this, uri);
+                int width = parseMetadataInt(next,
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+                int height = parseMetadataInt(next,
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+                int rotation = parseMetadataInt(next,
+                        MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+                if (width <= 0 || height <= 0) {
+                    throw new IllegalStateException("El video no informa sus dimensiones");
+                }
+                int[] oriented = VideoGeometry.orientedSize(width, height, rotation);
+                synchronized (retrieverLock) {
+                    if (retriever != null) retriever.release();
+                    retriever = next;
+                    encodedVideoWidth = width;
+                    encodedVideoHeight = height;
+                    displayVideoWidth = oriented[0];
+                    displayVideoHeight = oriented[1];
+                    retrieverReady = true;
+                }
+                handler.post(() -> {
+                    sourceLabel.setText(readableName(uri) + " · "
+                            + displayVideoWidth + "×" + displayVideoHeight);
+                    applyVideoTransform();
+                });
+            } catch (Exception error) {
+                try { next.release(); } catch (Exception ignored) { }
+                handler.post(() -> setStatus("NO SE PUDO LEER EL VIDEO",
+                        Color.rgb(239, 68, 68)));
+            }
+        });
+    }
+
+    private int parseMetadataInt(MediaMetadataRetriever value, int key) {
+        try {
+            String text = value.extractMetadata(key);
+            return text == null ? 0 : Integer.parseInt(text);
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     private void togglePlayback() {
@@ -246,39 +323,97 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
         if (!aiEnabled) overlay.clear();
     }
 
-    private Bitmap captureFrame(int maxDimension) {
-        if (!texture.isAvailable() || texture.getWidth() <= 0 || texture.getHeight() <= 0) return null;
-        float scale = Math.min(1f,
-                (float) maxDimension / Math.max(texture.getWidth(), texture.getHeight()));
-        return texture.getBitmap(Math.max(1, Math.round(texture.getWidth() * scale)),
-                Math.max(1, Math.round(texture.getHeight() * scale)));
-    }
-
-    private void analyze(Bitmap frame) {
+    private void analyzeAt(long positionMs) {
         executor.execute(() -> {
-            long start = System.nanoTime();
+            long started = System.nanoTime();
+            Bitmap frame = null;
             try {
-                List<Detection> detections = detector.detect(frame, 0.35f);
-                long elapsed = (System.nanoTime() - start) / 1_000_000L;
+                frame = captureFrameAt(positionMs, 960);
+                if (frame == null) throw new IllegalStateException("Fotograma no disponible");
+                List<Detection> detections = detector.detect(frame, DETECTION_THRESHOLD);
+                long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+                recordInferenceFrame();
+                Bitmap analyzedFrame = frame;
                 handler.post(() -> {
-                    overlay.setDetections(detections, frame.getWidth(), frame.getHeight());
+                    overlay.setDetections(detections,
+                            analyzedFrame.getWidth(), analyzedFrame.getHeight());
+                    statusLabel.setTextColor(Color.rgb(34, 197, 94));
                     statusLabel.setText((player.isPlaying() ? "REPRODUCIENDO" : "VIDEO PAUSADO")
-                            + " · " + detections.size() + " obj · IA " + elapsed + " ms");
+                            + " · " + detections.size() + " obj · IA " + elapsedMs + " ms"
+                            + " · umbral 20%");
                 });
             } catch (Exception error) {
-                handler.post(() -> setStatus("ERROR DE INFERENCIA", Color.rgb(239, 68, 68)));
+                handler.post(() -> setStatus("ERROR DE INFERENCIA · "
+                        + error.getClass().getSimpleName(), Color.rgb(239, 68, 68)));
             } finally {
-                frame.recycle();
+                if (frame != null) frame.recycle();
                 inferenceRunning.set(false);
             }
         });
     }
 
+    private Bitmap captureFrameAt(long positionMs, int maxDimension) {
+        synchronized (retrieverLock) {
+            if (retriever == null || !retrieverReady
+                    || encodedVideoWidth <= 0 || encodedVideoHeight <= 0) return null;
+            int[] size = VideoGeometry.scaledSize(
+                    encodedVideoWidth, encodedVideoHeight, maxDimension);
+            return retriever.getScaledFrameAtTime(
+                    Math.max(0L, positionMs) * 1_000L,
+                    MediaMetadataRetriever.OPTION_CLOSEST,
+                    size[0], size[1]);
+        }
+    }
+
+    private void applyVideoTransform() {
+        if (texture == null || texture.getWidth() <= 0 || texture.getHeight() <= 0) return;
+        float[] scale = VideoGeometry.fitScale(texture.getWidth(), texture.getHeight(),
+                displayVideoWidth, displayVideoHeight);
+        Matrix matrix = new Matrix();
+        matrix.setScale(scale[0], scale[1],
+                texture.getWidth() / 2f, texture.getHeight() / 2f);
+        texture.setTransform(matrix);
+    }
+
+    private void recordRenderedFrame() {
+        synchronized (fpsLock) {
+            long now = System.nanoTime();
+            if (renderedWindowStartedNs == 0L) renderedWindowStartedNs = now;
+            renderedFrames++;
+            long elapsed = now - renderedWindowStartedNs;
+            if (elapsed >= 1_000_000_000L) {
+                videoFps = renderedFrames * 1_000_000_000f / elapsed;
+                renderedFrames = 0L;
+                renderedWindowStartedNs = now;
+            }
+        }
+    }
+
+    private void recordInferenceFrame() {
+        synchronized (fpsLock) {
+            long now = System.nanoTime();
+            if (inferenceWindowStartedNs == 0L) inferenceWindowStartedNs = now;
+            inferenceFrames++;
+            long elapsed = now - inferenceWindowStartedNs;
+            if (elapsed >= 1_000_000_000L) {
+                inferenceFps = inferenceFrames * 1_000_000_000f / elapsed;
+                inferenceFrames = 0L;
+                inferenceWindowStartedNs = now;
+            }
+        }
+    }
+
     @Override protected void onResume() {
         super.onResume();
         visible = true;
-        frameCount = 0;
-        fpsStart = SystemClock.elapsedRealtime();
+        synchronized (fpsLock) {
+            renderedFrames = 0L;
+            inferenceFrames = 0L;
+            renderedWindowStartedNs = 0L;
+            inferenceWindowStartedNs = 0L;
+            videoFps = 0f;
+            inferenceFps = 0f;
+        }
         handler.post(inferenceTask);
         handler.post(diagnosticsTask);
     }
@@ -294,34 +429,40 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
     @Override protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         if (player != null) {
+            player.clearVideoFrameMetadataListener();
             player.clearVideoTextureView(texture);
             player.release();
         }
         if (detector != null) {
             try { detector.close(); } catch (Exception ignored) { }
         }
+        synchronized (retrieverLock) {
+            if (retriever != null) {
+                try { retriever.release(); } catch (Exception ignored) { }
+                retriever = null;
+            }
+        }
         executor.shutdownNow();
         super.onDestroy();
     }
 
-    @Override public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+    @Override public void onSurfaceTextureAvailable(
+            SurfaceTexture surface, int width, int height) {
         if (player != null) player.setVideoTextureView(texture);
+        applyVideoTransform();
     }
-    @Override public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) { }
+
+    @Override public void onSurfaceTextureSizeChanged(
+            SurfaceTexture surface, int width, int height) {
+        applyVideoTransform();
+    }
+
     @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
         if (player != null) player.clearVideoTextureView(texture);
         return true;
     }
-    @Override public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-        frameCount++;
-        long now = SystemClock.elapsedRealtime();
-        long elapsed = now - fpsStart;
-        if (elapsed >= 1_000L) {
-            fps = frameCount * 1_000f / elapsed;
-            frameCount = 0;
-            fpsStart = now;
-        }
-    }
+
+    @Override public void onSurfaceTextureUpdated(SurfaceTexture surface) { }
 
     private void updatePlayButton() {
         playButton.setText(player != null && player.isPlaying() ? "Pausar" : "Reproducir");
@@ -351,19 +492,21 @@ public final class VideoLabActivity extends Activity implements TextureView.Surf
         button.setText(value);
         button.setAllCaps(false);
         button.setTextColor(primary ? Color.rgb(4, 10, 18) : Color.WHITE);
-        button.setBackgroundColor(primary ? Color.rgb(34, 211, 238) : Color.rgb(30, 41, 59));
+        button.setBackgroundColor(primary
+                ? Color.rgb(34, 211, 238) : Color.rgb(30, 41, 59));
         return button;
     }
 
     private FrameLayout.LayoutParams matchFrame() {
-        return new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+        return new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT);
     }
 
-    private LinearLayout.LayoutParams actionParams(int start, int end) {
+    private LinearLayout.LayoutParams actionParams(int startDp, int endDp) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(50), 1f);
-        params.leftMargin = dp(start);
-        params.rightMargin = dp(end);
+        params.leftMargin = dp(startDp);
+        params.rightMargin = dp(endDp);
         return params;
     }
 
