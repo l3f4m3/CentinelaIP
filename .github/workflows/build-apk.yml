@@ -93,6 +93,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           TAG=v0.5.0-alpha06
           ASSET=ADA_Car-v0.5.0-alpha06.apk
@@ -103,7 +104,7 @@ jobs:
           else
             gh release create "$TAG" "$ASSET" "$CHECKSUM" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
+              --target "$TARGET_SHA" \
               --title "ADA_Car v0.5.0-alpha06" \
               --prerelease \
               --notes "APK experimental con tracking temporal, distancia monocular aproximada, velocidad de cierre y TTC sobre detecciones YOLO26. Las métricas no están calibradas ni homologadas y no deben usarse para decisiones de conducción."
