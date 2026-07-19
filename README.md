@@ -1,10 +1,11 @@
-# Centinela IP 0.4
+# Centinela IP 0.4.1
 
 Aplicación Android para reproducir varias cámaras IP por RTSP y el lente del teléfono al mismo tiempo, descubrir cámaras HCAM/X‑IOT en la red local, ejecutar detección YOLO26 por fuente, crear eventos configurables y preparar/entrenar modelos personalizados.
 
 ## Funciones
 
 - Mosaico de hasta seis fuentes activas simultáneamente.
+- Una fuente se abre automáticamente a pantalla completa; con varias, un doble toque amplía la elegida y permite cambiar con deslizamiento o flechas.
 - Fuentes RTSP independientes con autenticación y transporte TCP/UDP.
 - Cámara trasera o frontal del teléfono mediante CameraX.
 - Asistente HCAM/X‑IOT por UUID: abre el panel Wi‑Fi, reconoce el punto de acceso, busca anuncios ONVIF, escanea el segmento local y prueba rutas RTSP con autenticación Basic/Digest.
