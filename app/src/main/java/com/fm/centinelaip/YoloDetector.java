@@ -39,6 +39,7 @@ final class YoloDetector implements AutoCloseable {
     private final OrtSession session;
     private final String inputName;
     private final List<String> labels;
+    private final RoadObjectTracker tracker = new RoadObjectTracker();
     private final int[] pixels = new int[INPUT_SIZE * INPUT_SIZE];
     private final FloatBuffer inputBuffer = ByteBuffer
             .allocateDirect(3 * INPUT_SIZE * INPUT_SIZE * Float.BYTES)
@@ -147,8 +148,14 @@ final class YoloDetector implements AutoCloseable {
                 candidates.add(new Detection(left, top, right, bottom, confidence, classId,
                         labels.get(classId), PALETTE[classId % PALETTE.length]));
             }
-            return highestConfidence(candidates);
+            List<Detection> finalDetections = highestConfidence(candidates);
+            return tracker.update(finalDetections, source.getWidth(), source.getHeight(),
+                    System.nanoTime()).detections;
         }
+    }
+
+    void resetTracking() {
+        tracker.reset();
     }
 
     /** YOLO26 end-to-end ya produce detecciones finales; solo ordenamos y limitamos el dibujo. */
