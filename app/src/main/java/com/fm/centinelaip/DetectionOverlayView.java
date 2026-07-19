@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.ViewGroup;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,22 +36,54 @@ public final class DetectionOverlayView extends View {
         detections = values == null ? new ArrayList<>() : new ArrayList<>(values);
         sourceWidth = width;
         sourceHeight = height;
+        notifyHudSourceSize(width, height);
         invalidate();
     }
 
     void clear() {
         detections.clear();
+        sourceWidth = 0;
+        sourceHeight = 0;
+        notifyHudSourceSize(0, 0);
         invalidate();
+    }
+
+    int sourceWidth() {
+        return sourceWidth;
+    }
+
+    int sourceHeight() {
+        return sourceHeight;
+    }
+
+    private void notifyHudSourceSize(int width, int height) {
+        if (!(getParent() instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) getParent();
+        for (int index = 0; index < parent.getChildCount(); index++) {
+            View child = parent.getChildAt(index);
+            if (child instanceof DriveHudView) {
+                ((DriveHudView) child).setSourceSize(width, height);
+            }
+        }
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (sourceWidth <= 0 || sourceHeight <= 0 || detections.isEmpty()) return;
-        float scale = Math.min((float) getWidth() / sourceWidth, (float) getHeight() / sourceHeight);
-        float offsetX = (getWidth() - sourceWidth * scale) / 2f;
-        float offsetY = (getHeight() - sourceHeight * scale) / 2f;
+        float[] viewport = MediaViewport.fitCenter(
+                getWidth(), getHeight(), sourceWidth, sourceHeight);
+        if (!MediaViewport.valid(viewport)) return;
 
+        float viewportWidth = viewport[2] - viewport[0];
+        float scale = viewportWidth / sourceWidth;
+        float offsetX = viewport[0];
+        float offsetY = viewport[1];
+        float viewportRight = viewport[2];
+        float viewportBottom = viewport[3];
+
+        canvas.save();
+        canvas.clipRect(viewport[0], viewport[1], viewportRight, viewportBottom);
         for (Detection detection : detections) {
             float left = offsetX + detection.left * scale;
             float top = offsetY + detection.top * scale;
@@ -61,19 +94,21 @@ public final class DetectionOverlayView extends View {
             canvas.drawRoundRect(new RectF(left, top, right, bottom), dp(5), dp(5), boxPaint);
 
             String label = formatLabel(detection);
-            float textWidth = Math.min(textPaint.measureText(label), getWidth() - left - dp(8));
+            float availableWidth = Math.max(0f, viewportRight - left - dp(8));
+            float textWidth = Math.min(textPaint.measureText(label), availableWidth);
             float labelHeight = dp(23);
-            float labelTop = Math.max(0f, top - labelHeight);
+            float labelTop = Math.max(viewport[1], top - labelHeight);
             labelPaint.setColor(detection.color);
-            canvas.drawRoundRect(new RectF(left, labelTop,
-                            Math.min(getWidth(), left + textWidth + dp(14)), labelTop + labelHeight),
+            float labelRight = Math.min(viewportRight, left + textWidth + dp(14));
+            float labelBottom = Math.min(viewportBottom, labelTop + labelHeight);
+            canvas.drawRoundRect(new RectF(left, labelTop, labelRight, labelBottom),
                     dp(5), dp(5), labelPaint);
             canvas.save();
-            canvas.clipRect(left, labelTop, Math.min(getWidth(), left + textWidth + dp(12)),
-                    labelTop + labelHeight);
+            canvas.clipRect(left, labelTop, labelRight, labelBottom);
             canvas.drawText(label, left + dp(7), labelTop + dp(15.5f), textPaint);
             canvas.restore();
         }
+        canvas.restore();
     }
 
     private String formatLabel(Detection detection) {
