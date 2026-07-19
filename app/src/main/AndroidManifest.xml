@@ -35,6 +35,17 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name=".AdaDriveActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="ADA Drive"
+            android:screenOrientation="sensorLandscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".VideoLabActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="true"
