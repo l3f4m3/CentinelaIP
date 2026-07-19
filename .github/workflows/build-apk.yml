@@ -56,3 +56,20 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Preparar herramienta de firma Android
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          test -f "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar"
+          mkdir -p signing-tools
+          cp "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" signing-tools/apksigner.jar
+
+      - name: Publicar herramienta de firma Android
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-apksigner-35
+          path: signing-tools/apksigner.jar
+          if-no-files-found: error
+          retention-days: 30
