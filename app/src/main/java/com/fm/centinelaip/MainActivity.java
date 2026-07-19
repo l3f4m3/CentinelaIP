@@ -536,7 +536,9 @@ public final class MainActivity extends ComponentActivity {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode != CAMERA_REQUEST) return;
         if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
-            for (FeedController feed : feeds) if (feed.config.usesPhoneCamera()) feed.start();
+            for (FeedController feed : feeds) {
+                if (feed.config.usesPhoneCamera()) feed.onCameraPermissionGranted();
+            }
         } else {
             for (FeedController feed : feeds) {
                 if (feed.config.usesPhoneCamera()) feed.showError("Permiso de cámara no concedido");
@@ -718,6 +720,14 @@ public final class MainActivity extends ComponentActivity {
             }
             if (config.usesPhoneCamera()) startPhone();
             else startRtsp();
+        }
+
+        void onCameraPermissionGranted() {
+            if (released || userStopped) return;
+            // La solicitud dejó la fuente en CONNECTING; vuelve a IDLE para que
+            // start() no descarte el arranque cuando Android entrega el permiso.
+            state = IDLE;
+            start();
         }
 
         private void startRtsp() {
