@@ -40,10 +40,16 @@ jobs:
           echo "2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7  app/src/main/assets/yolo26n.onnx" | sha256sum --check
 
       - name: Ejecutar pruebas unitarias
-        run: gradle --no-daemon :app:testReleaseUnitTest
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:testReleaseUnitTest 2>&1 | tee gradle-test.log
 
       - name: Compilar APK release instalable
-        run: gradle --no-daemon :app:assembleRelease
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:assembleRelease 2>&1 | tee gradle-build.log
 
       - name: Verificar APK y firma
         shell: bash
@@ -54,6 +60,17 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           java -jar "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" verify --verbose --print-certs "$APK"
           sha256sum "$APK" | tee app-release.sha256
+
+      - name: Publicar diagnóstico de CI
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ADA-v0.5.0-alpha02-CI-logs
+          path: |
+            gradle-test.log
+            gradle-build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Publicar APK validada
         uses: actions/upload-artifact@v4
