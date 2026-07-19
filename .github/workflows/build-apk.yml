@@ -1,8 +1,8 @@
-name: Compilar APK
+name: Validar y compilar APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, "agent/**"]
   pull_request:
   workflow_dispatch:
 
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: CentinelaIP v0.4.2
+    name: ADA v0.5.0-alpha01
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -39,37 +39,29 @@ jobs:
             https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.onnx
           echo "2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7  app/src/main/assets/yolo26n.onnx" | sha256sum --check
 
+      - name: Ejecutar pruebas unitarias
+        run: gradle --no-daemon :app:testReleaseUnitTest
+
       - name: Compilar APK release instalable
         run: gradle --no-daemon :app:assembleRelease
 
-      - name: Verificar resultado
+      - name: Verificar APK y firma
         shell: bash
         run: |
-          test -s app/build/outputs/apk/release/app-release.apk
-          unzip -t app/build/outputs/apk/release/app-release.apk
-          sha256sum app/build/outputs/apk/release/app-release.apk
-
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: CentinelaIP-v0.4.2-APK
-          path: app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Preparar herramienta de firma Android
-        shell: bash
-        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          unzip -t "$APK"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          test -n "$SDK_ROOT"
-          test -f "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar"
-          mkdir -p signing-tools
-          cp "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" signing-tools/apksigner.jar
+          java -jar "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" verify --verbose --print-certs "$APK"
+          sha256sum "$APK" | tee app-release.sha256
 
-      - name: Publicar herramienta de firma Android
+      - name: Publicar APK validada
         uses: actions/upload-artifact@v4
         with:
-          name: Android-apksigner-35
-          path: signing-tools/apksigner.jar
+          name: ADA-v0.5.0-alpha01-APK
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app-release.sha256
+            app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: error
           retention-days: 30
