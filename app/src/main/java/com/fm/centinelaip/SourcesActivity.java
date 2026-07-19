@@ -133,7 +133,7 @@ public final class SourcesActivity extends Activity {
     private Button actionButton(String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextAllCaps(false);
+        button.setAllCaps(false);
         button.setTextColor(getColor(R.color.text_primary));
         button.setBackgroundResource(R.drawable.bg_button_secondary);
         return button;
