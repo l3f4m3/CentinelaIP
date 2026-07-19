@@ -26,7 +26,7 @@ public final class DetectionOverlayView extends View {
         boxPaint.setStyle(Paint.Style.STROKE);
         boxPaint.setStrokeWidth(dp(2.5f));
         textPaint.setColor(Color.WHITE);
-        textPaint.setTextSize(dp(12f));
+        textPaint.setTextSize(dp(11f));
         textPaint.setFakeBoldText(true);
         labelPaint.setStyle(Paint.Style.FILL);
     }
@@ -60,15 +60,37 @@ public final class DetectionOverlayView extends View {
             boxPaint.setShadowLayer(dp(6), 0f, 0f, detection.color);
             canvas.drawRoundRect(new RectF(left, top, right, bottom), dp(5), dp(5), boxPaint);
 
-            String label = detection.label + " " + Math.round(detection.confidence * 100) + "%";
-            float textWidth = textPaint.measureText(label);
-            float labelHeight = dp(24);
+            String label = formatLabel(detection);
+            float textWidth = Math.min(textPaint.measureText(label), getWidth() - left - dp(8));
+            float labelHeight = dp(23);
             float labelTop = Math.max(0f, top - labelHeight);
             labelPaint.setColor(detection.color);
-            canvas.drawRoundRect(new RectF(left, labelTop, left + textWidth + dp(14), labelTop + labelHeight),
+            canvas.drawRoundRect(new RectF(left, labelTop,
+                            Math.min(getWidth(), left + textWidth + dp(14)), labelTop + labelHeight),
                     dp(5), dp(5), labelPaint);
-            canvas.drawText(label, left + dp(7), labelTop + dp(16.5f), textPaint);
+            canvas.save();
+            canvas.clipRect(left, labelTop, Math.min(getWidth(), left + textWidth + dp(12)),
+                    labelTop + labelHeight);
+            canvas.drawText(label, left + dp(7), labelTop + dp(15.5f), textPaint);
+            canvas.restore();
         }
+    }
+
+    private String formatLabel(Detection detection) {
+        StringBuilder value = new StringBuilder();
+        if (detection.trackId >= 0) value.append('#').append(detection.trackId).append(' ');
+        value.append(detection.label).append(' ')
+                .append(Math.round(detection.confidence * 100)).append('%');
+        if (Float.isFinite(detection.distanceMeters)) {
+            value.append(String.format(Locale.US, " · ~%.0f m", detection.distanceMeters));
+        }
+        if (Float.isFinite(detection.closingSpeedMps) && detection.closingSpeedMps > 0.5f) {
+            value.append(String.format(Locale.US, " · +%.0f km/h", detection.closingSpeedMps * 3.6f));
+        }
+        if (Float.isFinite(detection.ttcSeconds) && detection.ttcSeconds < 30f) {
+            value.append(String.format(Locale.US, " · TTC %.1f s", detection.ttcSeconds));
+        }
+        return value.toString();
     }
 
     private float dp(float value) {
