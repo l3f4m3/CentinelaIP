@@ -40,6 +40,7 @@ final class YoloDetector implements AutoCloseable {
     private final String inputName;
     private final List<String> labels;
     private final RoadObjectTracker tracker = new RoadObjectTracker();
+    private final RoadPerceptionEstimator roadEstimator = new RoadPerceptionEstimator();
     private final int[] pixels = new int[INPUT_SIZE * INPUT_SIZE];
     private final FloatBuffer inputBuffer = ByteBuffer
             .allocateDirect(3 * INPUT_SIZE * INPUT_SIZE * Float.BYTES)
@@ -95,6 +96,12 @@ final class YoloDetector implements AutoCloseable {
     }
 
     List<Detection> detect(Bitmap source, float threshold) throws OrtException {
+        try {
+            RoadPerceptionStore.publish(roadEstimator.estimate(source));
+        } catch (RuntimeException ignored) {
+            RoadPerceptionStore.clear();
+        }
+
         float scale = Math.min((float) INPUT_SIZE / source.getWidth(), (float) INPUT_SIZE / source.getHeight());
         int scaledWidth = Math.max(1, Math.round(source.getWidth() * scale));
         int scaledHeight = Math.max(1, Math.round(source.getHeight() * scale));
@@ -156,6 +163,7 @@ final class YoloDetector implements AutoCloseable {
 
     void resetTracking() {
         tracker.reset();
+        RoadPerceptionStore.clear();
     }
 
     /** YOLO26 end-to-end ya produce detecciones finales; solo ordenamos y limitamos el dibujo. */
@@ -186,6 +194,7 @@ final class YoloDetector implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        RoadPerceptionStore.clear();
         session.close();
     }
 }
