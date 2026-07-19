@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: CentinelaIP v0.4.0
+    name: CentinelaIP v0.4.1
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -52,7 +52,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: CentinelaIP-v0.4.0-APK
+          name: CentinelaIP-v0.4.1-APK
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
