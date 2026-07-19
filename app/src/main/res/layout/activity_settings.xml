@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="48dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="‹"
+                android:textColor="@color/text_primary"
+                android:textSize="26sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="Configurar cámara"
+                android:textColor="@color/text_primary"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="FUENTE DE VIDEO"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/sourceGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/sourceRtspRadio"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:buttonTint="@color/primary"
+                android:checked="true"
+                android:text="Cámara IP · RTSP"
+                android:textColor="@color/text_primary" />
+
+            <RadioButton
+                android:id="@+id/sourcePhoneRadio"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:buttonTint="@color/primary"
+                android:text="Cámara del teléfono"
+                android:textColor="@color/text_primary" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="CONEXIÓN RTSP"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView style="@style/FieldLabel" android:text="Nombre" />
+        <EditText
+            android:id="@+id/nameInput"
+            style="@style/FieldInput"
+            android:hint="Entrada principal"
+            android:inputType="textCapSentences" />
+
+        <TextView style="@style/FieldLabel" android:text="URL RTSP completa" />
+        <EditText
+            android:id="@+id/urlInput"
+            style="@style/FieldInput"
+            android:hint="rtsp://192.168.1.50:554/stream1"
+            android:inputType="textUri"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Rutas comunes · toca para completar"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none">
+            <LinearLayout
+                android:id="@+id/pathSuggestions"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="8dp"
+                android:paddingBottom="4dp" />
+        </HorizontalScrollView>
+
+        <TextView style="@style/FieldLabel" android:text="Usuario" />
+        <EditText
+            android:id="@+id/userInput"
+            style="@style/FieldInput"
+            android:hint="admin"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
+
+        <TextView style="@style/FieldLabel" android:text="Contraseña" />
+        <EditText
+            android:id="@+id/passwordInput"
+            style="@style/FieldInput"
+            android:hint="Contraseña de la cámara"
+            android:inputType="textPassword"
+            android:singleLine="true" />
+
+        <TextView style="@style/FieldLabel" android:text="Transporte" />
+        <RadioGroup
+            android:id="@+id/transportGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <RadioButton
+                android:id="@+id/tcpRadio"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:buttonTint="@color/primary"
+                android:checked="true"
+                android:text="TCP · recomendado"
+                android:textColor="@color/text_primary" />
+            <RadioButton
+                android:id="@+id/udpRadio"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:buttonTint="@color/primary"
+                android:text="UDP · menor latencia"
+                android:textColor="@color/text_primary" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="LENTE DEL TELÉFONO"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/lensGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rearCameraRadio"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:buttonTint="@color/primary"
+                android:checked="true"
+                android:text="Trasera · carretera"
+                android:textColor="@color/text_primary" />
+
+            <RadioButton
+                android:id="@+id/frontCameraRadio"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:buttonTint="@color/primary"
+                android:text="Frontal"
+                android:textColor="@color/text_primary" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="INTELIGENCIA LOCAL"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Umbral de confianza"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+            <TextView
+                android:id="@+id/confidenceValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="45%"
+                android:textColor="@color/primary"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/confidenceSeek"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:max="70"
+            android:min="20"
+            android:progress="45"
+            android:progressTint="@color/primary"
+            android:thumbTint="@color/primary" />
+
+        <Switch
+            android:id="@+id/personAlertsSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:checked="true"
+            android:text="Activar notificaciones para las clases elegidas"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:thumbTint="@color/primary" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:lineSpacingExtra="3dp"
+            android:padding="14dp"
+            android:text="Privacidad: el video y YOLO26n se procesan en el teléfono. Las credenciales se cifran con Android Keystore."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="MODELOS Y APRENDIZAJE"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <Button
+                android:id="@+id/modelsButton"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="3dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Modelos"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary" />
+            <Button
+                android:id="@+id/annotationButton"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="3dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Anotar"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal">
+            <Button
+                android:id="@+id/eventRulesButton"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="3dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Reglas de eventos"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary" />
+            <Button
+                android:id="@+id/trainingButton"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="3dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Entrenar"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="22dp"
+            android:background="@drawable/bg_button_primary"
+            android:text="Guardar y conectar"
+            android:textAllCaps="false"
+            android:textColor="@color/background"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:gravity="center"
+            android:text="Centinela IP 0.4 · modelos y datasets · arm64"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>

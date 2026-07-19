@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Centinela IP</string>
+    <string name="model_name">YOLO26n · local</string>
+    <string name="empty_events">Aún no hay eventos. Activa la IA y conecta la cámara.</string>
+</resources>

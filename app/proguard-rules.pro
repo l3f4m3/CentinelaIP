@@ -1,0 +1,2 @@
+-keep class ai.onnxruntime.** { *; }
+-keep class androidx.media3.exoplayer.rtsp.** { *; }

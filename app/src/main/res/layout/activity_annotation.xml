@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/backButton"
+            android:layout_width="46dp"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_button_secondary"
+            android:text="‹"
+            android:textColor="@color/text_primary"
+            android:textSize="25sp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="Anotador preciso"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/modelText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_badge"
+            android:textColor="@color/primary"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/openImageButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_secondary"
+            android:text="Abrir imagen"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary" />
+        <Button
+            android:id="@+id/openVideoButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_secondary"
+            android:text="Abrir video"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary" />
+        <Button
+            android:id="@+id/autoButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_primary"
+            android:enabled="false"
+            android:text="Sugerir con IA"
+            android:textAllCaps="false"
+            android:textColor="@color/background" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/sourceText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="middle"
+        android:gravity="center"
+        android:maxLines="1"
+        android:padding="4dp"
+        android:text="Abre una imagen o un video"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="4dp"
+        android:layout_weight="1"
+        android:background="#020407">
+        <com.fm.centinelaip.AnnotationCanvasView
+            android:id="@+id/annotationCanvas"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/videoControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <Button
+            android:id="@+id/previousFrameButton"
+            android:layout_width="48dp"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_button_secondary"
+            android:text="−1"
+            android:textColor="@color/text_primary" />
+        <SeekBar
+            android:id="@+id/videoSeek"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:max="1000"
+            android:progressTint="@color/primary"
+            android:thumbTint="@color/primary" />
+        <Button
+            android:id="@+id/nextFrameButton"
+            android:layout_width="48dp"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_button_secondary"
+            android:text="+1"
+            android:textColor="@color/text_primary" />
+        <TextView
+            android:id="@+id/videoTimeText"
+            android:layout_width="76dp"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:scrollbars="none">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+            <Button android:id="@+id/panButton" style="@style/AnnotationTool" android:text="Mover vista" />
+            <Button android:id="@+id/editButton" style="@style/AnnotationTool" android:text="Editar caja" />
+            <Button android:id="@+id/acceptButton" style="@style/AnnotationTool" android:text="Aceptar" />
+            <Button android:id="@+id/rejectButton" style="@style/AnnotationTool" android:text="Rechazar" />
+            <Button android:id="@+id/deleteButton" style="@style/AnnotationTool" android:text="Eliminar" />
+            <Button android:id="@+id/undoButton" style="@style/AnnotationTool" android:text="Deshacer" />
+            <Button android:id="@+id/resetZoomButton" style="@style/AnnotationTool" android:text="Recentrar" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/saveSampleButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1.3"
+            android:background="@drawable/bg_button_primary"
+            android:text="Guardar anotación"
+            android:textAllCaps="false"
+            android:textColor="@color/background"
+            android:textStyle="bold" />
+        <Button
+            android:id="@+id/curateButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_secondary"
+            android:text="Curar IA"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary" />
+        <Button
+            android:id="@+id/exportDatasetButton"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_secondary"
+            android:text="Exportar YOLO"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/reviewDatasetButton"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_marginStart="2dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="2dp"
+        android:background="@drawable/bg_button_secondary"
+        android:text="Revisar y corregir dataset guardado"
+        android:textAllCaps="false"
+        android:textColor="@color/primary" />
+
+    <TextView
+        android:id="@+id/datasetText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="4dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp" />
+</LinearLayout>

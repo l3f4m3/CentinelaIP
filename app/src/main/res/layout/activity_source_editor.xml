@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="48dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="‹"
+                android:textColor="@color/text_primary"
+                android:textSize="26sp" />
+
+            <TextView
+                android:id="@+id/titleText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="Nueva fuente"
+                android:textColor="@color/text_primary"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="TIPO DE FUENTE"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/typeGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/typeHcam"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:buttonTint="@color/primary"
+                android:text="HCAM / X‑IOT · UUID + descubrimiento local"
+                android:textColor="@color/text_primary" />
+
+            <RadioButton
+                android:id="@+id/typeRtsp"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:buttonTint="@color/primary"
+                android:checked="true"
+                android:text="Cámara IP · RTSP"
+                android:textColor="@color/text_primary" />
+
+            <RadioButton
+                android:id="@+id/typePhone"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:buttonTint="@color/primary"
+                android:text="Cámara del teléfono"
+                android:textColor="@color/text_primary" />
+        </RadioGroup>
+
+        <TextView style="@style/FieldLabel" android:text="Nombre visible" />
+        <EditText
+            android:id="@+id/nameInput"
+            style="@style/FieldInput"
+            android:hint="Entrada principal"
+            android:inputType="textCapSentences" />
+
+        <LinearLayout
+            android:id="@+id/hcamSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="IDENTIDAD HCAM"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView style="@style/FieldLabel" android:text="UUID / Device ID" />
+            <EditText
+                android:id="@+id/uuidInput"
+                style="@style/FieldInput"
+                android:hint="HCAM… (se detecta desde el SSID)"
+                android:inputType="textVisiblePassword"
+                android:singleLine="true" />
+
+            <TextView style="@style/FieldLabel" android:text="Punto de acceso esperado" />
+            <EditText
+                android:id="@+id/ssidInput"
+                style="@style/FieldInput"
+                android:hint="XIOTA-HCAM…"
+                android:inputType="textVisiblePassword"
+                android:singleLine="true" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card"
+                android:lineSpacingExtra="3dp"
+                android:padding="13dp"
+                android:text="1. Abre Wi‑Fi y conéctate a XIOTA‑HCAM…\n2. Android avisará que no hay Internet: elige Sí / mantener.\n3. Regresa y pulsa Detectar. Se probarán ONVIF y rutas RTSP HCAM de forma local."
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/openWifiButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_button_secondary"
+                    android:text="1 · Abrir Wi‑Fi"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary" />
+
+                <Button
+                    android:id="@+id/discoverButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_button_primary"
+                    android:text="2 · Detectar cámara"
+                    android:textAllCaps="false"
+                    android:textColor="@color/background"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/vendorAppButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Abrir X‑IOT CAM para configurar el Wi‑Fi 2.4 GHz"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/discoveryReport"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card"
+                android:lineSpacingExtra="3dp"
+                android:padding="13dp"
+                android:text="El diagnóstico aparecerá aquí."
+                android:textColor="@color/text_secondary"
+                android:textIsSelectable="true"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/copyReportButton"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Copiar diagnóstico"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/networkSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="FLUJO DE VIDEO LOCAL"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView style="@style/FieldLabel" android:text="URL RTSP" />
+            <EditText
+                android:id="@+id/urlInput"
+                style="@style/FieldInput"
+                android:hint="rtsp://192.168.0.1:554/11"
+                android:inputType="textUri"
+                android:singleLine="true" />
+
+            <TextView style="@style/FieldLabel" android:text="Usuario" />
+            <EditText
+                android:id="@+id/userInput"
+                style="@style/FieldInput"
+                android:hint="admin"
+                android:inputType="textNoSuggestions"
+                android:singleLine="true" />
+
+            <TextView style="@style/FieldLabel" android:text="Contraseña de la cámara" />
+            <EditText
+                android:id="@+id/passwordInput"
+                style="@style/FieldInput"
+                android:hint="Escribe la clave de tu cámara"
+                android:inputType="textPassword"
+                android:singleLine="true" />
+
+            <Switch
+                android:id="@+id/tcpSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:checked="true"
+                android:text="Forzar RTSP sobre TCP · recomendado"
+                android:textColor="@color/text_primary"
+                android:thumbTint="@color/primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/phoneSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="LENTE DEL TELÉFONO"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <RadioGroup
+                android:id="@+id/lensGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/rearCameraRadio"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:buttonTint="@color/primary"
+                    android:checked="true"
+                    android:text="Trasera"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/frontCameraRadio"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:buttonTint="@color/primary"
+                    android:text="Frontal"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="ACTIVACIÓN Y DETECCIÓN"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <Switch
+            android:id="@+id/enabledSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:checked="true"
+            android:text="Reproducir esta fuente en el mosaico"
+            android:textColor="@color/text_primary"
+            android:thumbTint="@color/primary" />
+
+        <Switch
+            android:id="@+id/detectSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:checked="true"
+            android:text="Ejecutar YOLO en esta fuente"
+            android:textColor="@color/text_primary"
+            android:thumbTint="@color/primary" />
+
+        <Switch
+            android:id="@+id/alertsSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:checked="true"
+            android:text="Permitir avisos según las reglas de eventos"
+            android:textColor="@color/text_primary"
+            android:thumbTint="@color/primary" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Confianza mínima"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/confidenceValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="45%"
+                android:textColor="@color/primary"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/confidenceSeek"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:max="70"
+            android:min="20"
+            android:progress="45"
+            android:progressTint="@color/primary"
+            android:thumbTint="@color/primary" />
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/bg_button_primary"
+            android:text="Guardar fuente"
+            android:textAllCaps="false"
+            android:textColor="@color/background"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:text="Centinela IP 0.4 · hasta 6 fuentes · arm64"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>
