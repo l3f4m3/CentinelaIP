@@ -98,14 +98,25 @@ jobs:
           TAG=v0.5.0-alpha09
           ASSET=ADA_Car-v0.5.0-alpha09.apk
           CHECKSUM=ADA_Car-v0.5.0-alpha09.sha256
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
-              --repo "$GITHUB_REPOSITORY" --clobber
-          else
-            gh release create "$TAG" "$ASSET" "$CHECKSUM" \
+          NOTES="Video y cámara llenan el área visible mediante recorte centrado sin deformación. Doble toque alterna entre Llenar y Ajustar; detecciones, carriles y HUD comparten la misma geometría."
+
+          for attempt in 1 2 3 4 5; do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
+                --repo "$GITHUB_REPOSITORY" --clobber
+              exit 0
+            fi
+
+            if gh release create "$TAG" "$ASSET" "$CHECKSUM" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$TARGET_SHA" \
               --title "ADA_Car v0.5.0-alpha09" \
               --prerelease \
-              --notes "Video y cámara llenan el área visible mediante recorte centrado sin deformación. Doble toque alterna entre Llenar y Ajustar; detecciones, carriles y HUD comparten la misma geometría."
-          fi
+              --notes "$NOTES"; then
+              exit 0
+            fi
+            sleep $((attempt * 3))
+          done
+
+          gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
+            --repo "$GITHUB_REPOSITORY" --clobber
