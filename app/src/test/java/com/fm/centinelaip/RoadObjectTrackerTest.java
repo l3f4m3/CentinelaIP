@@ -28,20 +28,24 @@ public class RoadObjectTrackerTest {
         assertFalse(Float.isFinite(RoadObjectTracker.estimateDistanceMeters(chair, 720)));
     }
 
-    @Test public void sameObjectKeepsTrackIdAndProducesClosingSpeed() {
+    @Test public void sameObjectKeepsTrackIdAndPublishesDynamicsAfterStabilizing() {
         RoadObjectTracker tracker = new RoadObjectTracker();
         long first = 1_000_000_000L;
         RoadObjectTracker.Result one = tracker.update(
                 Collections.singletonList(car(300f, 220f, 500f, 420f)),
                 800, 720, first);
-        RoadObjectTracker.Result two = tracker.update(
-                Collections.singletonList(car(290f, 190f, 510f, 440f)),
-                800, 720, first + 500_000_000L);
+        tracker.update(Collections.singletonList(car(296f, 210f, 504f, 430f)),
+                800, 720, first + 300_000_000L);
+        tracker.update(Collections.singletonList(car(292f, 200f, 508f, 440f)),
+                800, 720, first + 600_000_000L);
+        RoadObjectTracker.Result four = tracker.update(
+                Collections.singletonList(car(288f, 188f, 512f, 452f)),
+                800, 720, first + 900_000_000L);
 
-        assertEquals(one.detections.get(0).trackId, two.detections.get(0).trackId);
-        assertTrue(Float.isFinite(two.detections.get(0).closingSpeedMps));
-        assertTrue(two.detections.get(0).closingSpeedMps > 0f);
-        assertTrue(Float.isFinite(two.detections.get(0).ttcSeconds));
+        assertEquals(one.detections.get(0).trackId, four.detections.get(0).trackId);
+        assertTrue(Float.isFinite(four.detections.get(0).closingSpeedMps));
+        assertTrue(four.detections.get(0).closingSpeedMps > 0f);
+        assertTrue(Float.isFinite(four.detections.get(0).ttcSeconds));
     }
 
     @Test public void objectOutsideCentralCorridorDoesNotBecomeCritical() {
@@ -54,6 +58,21 @@ public class RoadObjectTrackerTest {
                 800, 720, first + 400_000_000L);
         assertEquals(RoadObjectTracker.RiskLevel.SAFE,
                 result.detections.get(0).riskLevel);
+    }
+
+    @Test public void distanceFourMetersWithLongTtcIsAttentionNotCritical() {
+        assertEquals(RoadObjectTracker.RiskLevel.ATTENTION,
+                RoadObjectTracker.classifyRisk(4f, 0.6f, 7.1f, 6, true));
+    }
+
+    @Test public void shortTtcRemainsCritical() {
+        assertEquals(RoadObjectTracker.RiskLevel.CRITICAL,
+                RoadObjectTracker.classifyRisk(4f, 2.2f, 1.8f, 6, true));
+    }
+
+    @Test public void unstableTrackDoesNotRaiseDynamicWarning() {
+        assertEquals(RoadObjectTracker.RiskLevel.SAFE,
+                RoadObjectTracker.classifyRisk(4f, 3f, 1.2f, 2, true));
     }
 
     @Test public void longGapResetsTrackIdentifiers() {
