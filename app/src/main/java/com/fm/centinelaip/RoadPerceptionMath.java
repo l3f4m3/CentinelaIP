@@ -28,6 +28,33 @@ final class RoadPerceptionMath {
         return (red * 0.2126f + green * 0.7152f + blue * 0.0722f) / 255f;
     }
 
+    /**
+     * Clasifica el contexto de una línea brillante.
+     * Una marca suele tener pavimento parecido a ambos lados; un borde físico separa superficies distintas.
+     */
+    static int classifyLineContext(float lineLuminance, float leftLuminance, float rightLuminance) {
+        float leftContrast = lineLuminance - leftLuminance;
+        float rightContrast = lineLuminance - rightLuminance;
+        float sideDifference = Math.abs(leftLuminance - rightLuminance);
+        boolean brightOnBothSides = leftContrast >= 0.09f && rightContrast >= 0.09f;
+        if (brightOnBothSides && sideDifference <= 0.16f) {
+            return RoadPerception.LanePath.KIND_MARKING;
+        }
+        if (sideDifference >= 0.14f && Math.max(leftContrast, rightContrast) >= 0.08f) {
+            return RoadPerception.LanePath.KIND_BOUNDARY;
+        }
+        return RoadPerception.LanePath.KIND_UNKNOWN;
+    }
+
+    /** Un baseline heurístico nunca debe mostrar una confianza cercana a certificación. */
+    static float capHeuristicConfidence(float confidence, int kind) {
+        float maximum;
+        if (kind == RoadPerception.LanePath.KIND_MARKING) maximum = 0.86f;
+        else if (kind == RoadPerception.LanePath.KIND_BOUNDARY) maximum = 0.68f;
+        else maximum = 0.52f;
+        return clamp(confidence, 0f, maximum);
+    }
+
     static Fit fitLine(float[] y, float[] x, int count) {
         if (x == null || y == null || count < 2 || count > x.length || count > y.length) {
             return Fit.INVALID;
@@ -68,6 +95,19 @@ final class RoadPerceptionMath {
     static float confidence(int samples, int targetSamples, float averageScore, float rSquared) {
         float coverage = clamp(samples / (float) Math.max(1, targetSamples), 0f, 1f);
         return clamp(coverage * 0.55f + averageScore * 0.25f + rSquared * 0.20f, 0f, 1f);
+    }
+
+    static float convergenceScore(Fit left, Fit right) {
+        if (left == null || right == null || !left.valid || !right.valid) return 0f;
+        float denominator = left.slope - right.slope;
+        if (Math.abs(denominator) < 0.08f) return 0f;
+        float y = (right.intercept - left.intercept) / denominator;
+        float x = evaluate(left, y);
+        if (!Float.isFinite(x) || !Float.isFinite(y)) return 0f;
+        if (y < 0.12f || y > 0.72f || x < 0.24f || x > 0.76f) return 0f;
+        float xScore = 1f - Math.abs(x - 0.5f) / 0.26f;
+        float yScore = 1f - Math.abs(y - 0.38f) / 0.34f;
+        return clamp(xScore * 0.55f + yScore * 0.45f, 0f, 1f);
     }
 
     static float clamp(float value, float minimum, float maximum) {
