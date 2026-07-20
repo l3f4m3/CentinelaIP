@@ -2,7 +2,7 @@ package com.fm.centinelaip;
 
 import android.graphics.Bitmap;
 
-/** Baseline ligero para marcas blancas/amarillas y corredor de vía. */
+/** Baseline ligero para marcas blancas/amarillas y límites físicos de la vía. */
 final class RoadPerceptionEstimator {
     private static final int TARGET_WIDTH = 320;
     private static final int ROW_SAMPLES = 24;
@@ -45,6 +45,8 @@ final class RoadPerceptionEstimator {
         float scoreSum = 0f;
         float whiteWeight = 0f;
         float yellowWeight = 0f;
+        float markingWeight = 0f;
+        float boundaryWeight = 0f;
         float previousX = Float.NaN;
         int count = 0;
         int bottom = height - 3;
@@ -57,15 +59,15 @@ final class RoadPerceptionEstimator {
                     ? width * (0.52f + 0.30f * near)
                     : width * (0.48f - 0.30f * near);
             float expected = Float.isFinite(previousX)
-                    ? previousX * 0.68f + defaultX * 0.32f : defaultX;
+                    ? previousX * 0.72f + defaultX * 0.28f : defaultX;
             int minimum = rightSide ? Math.round(width * 0.51f) : Math.round(width * 0.04f);
             int maximum = rightSide ? Math.round(width * 0.96f) : Math.round(width * 0.49f);
-            int radius = Math.round(width * (0.13f + near * 0.16f));
+            int radius = Math.round(width * (0.11f + near * 0.15f));
             int from = Math.max(minimum, Math.round(expected) - radius);
             int to = Math.min(maximum, Math.round(expected) + radius);
 
             Candidate best = Candidate.NONE;
-            for (int x = Math.max(3, from); x <= Math.min(width - 4, to); x++) {
+            for (int x = Math.max(10, from); x <= Math.min(width - 11, to); x++) {
                 int color = pixels[y * width + x];
                 int red = (color >> 16) & 0xFF;
                 int green = (color >> 8) & 0xFF;
@@ -74,47 +76,85 @@ final class RoadPerceptionEstimator {
                 boolean yellow = RoadPerceptionMath.isYellow(red, green, blue);
                 if (!white && !yellow) continue;
 
-                float horizontalContrast = Math.abs(
-                        RoadPerceptionMath.luminance(pixels[y * width + x + 3])
-                                - RoadPerceptionMath.luminance(pixels[y * width + x - 3]));
-                int upperY = Math.max(0, y - 2);
-                int lowerY = Math.min(height - 1, y + 2);
+                float lineLuminance = RoadPerceptionMath.luminance(color);
+                float leftLuminance = averageLuminance(pixels, width, height, x - 9, x - 4, y);
+                float rightLuminance = averageLuminance(pixels, width, height, x + 4, x + 9, y);
+                int kind = RoadPerceptionMath.classifyLineContext(
+                        lineLuminance, leftLuminance, rightLuminance);
+
+                float horizontalContrast = Math.abs(rightLuminance - leftLuminance);
+                int upperY = Math.max(0, y - 3);
+                int lowerY = Math.min(height - 1, y + 3);
                 float verticalContrast = Math.abs(
                         RoadPerceptionMath.luminance(pixels[lowerY * width + x])
                                 - RoadPerceptionMath.luminance(pixels[upperY * width + x]));
-                float contrast = Math.max(horizontalContrast, verticalContrast * 0.65f);
+                float edgeStrength = Math.max(horizontalContrast, verticalContrast * 0.55f);
                 float proximity = 1f - Math.min(1f, Math.abs(x - expected) / Math.max(1f, radius));
-                float score = 0.48f + Math.min(0.34f, contrast * 0.9f) + proximity * 0.18f;
-                if (yellow) score += 0.05f;
-                if (score > best.score) best = new Candidate(x, score, white, yellow);
+                float score = 0.36f + Math.min(0.28f, edgeStrength * 0.75f) + proximity * 0.18f;
+                if (kind == RoadPerception.LanePath.KIND_MARKING) score += 0.14f;
+                else if (kind == RoadPerception.LanePath.KIND_BOUNDARY) score += 0.07f;
+                if (yellow) score += 0.04f;
+                if (score > best.score) best = new Candidate(x, score, white, yellow, kind);
             }
 
-            if (best.score < 0.50f) continue;
+            if (best.score < 0.52f) continue;
             previousX = best.x;
             normalizedY[count] = y / (float) height;
             normalizedX[count] = best.x / (float) width;
             scoreSum += best.score;
             if (best.white) whiteWeight += best.score;
             if (best.yellow) yellowWeight += best.score;
+            if (best.kind == RoadPerception.LanePath.KIND_MARKING) markingWeight += best.score;
+            if (best.kind == RoadPerception.LanePath.KIND_BOUNDARY) boundaryWeight += best.score;
             count++;
         }
 
         RoadPerceptionMath.Fit fit = RoadPerceptionMath.fitLine(normalizedY, normalizedX, count);
-        if (!fit.valid || count < 4) return LaneCandidate.INVALID;
-        if (!rightSide && fit.slope > -0.035f) return LaneCandidate.INVALID;
-        if (rightSide && fit.slope < 0.035f) return LaneCandidate.INVALID;
+        if (!fit.valid || count < 5) return LaneCandidate.INVALID;
+        if (!rightSide && fit.slope > -0.055f) return LaneCandidate.INVALID;
+        if (rightSide && fit.slope < 0.055f) return LaneCandidate.INVALID;
+
+        float topX = RoadPerceptionMath.evaluate(fit, horizon / (float) height);
+        float bottomX = RoadPerceptionMath.evaluate(fit, 0.98f);
+        if (!rightSide && (topX < 0.16f || topX > 0.58f || bottomX < 0.01f || bottomX > 0.49f)) {
+            return LaneCandidate.INVALID;
+        }
+        if (rightSide && (topX < 0.42f || topX > 0.84f || bottomX < 0.51f || bottomX > 0.99f)) {
+            return LaneCandidate.INVALID;
+        }
+
+        int kind;
+        if (markingWeight > boundaryWeight * 1.12f) kind = RoadPerception.LanePath.KIND_MARKING;
+        else if (boundaryWeight > 0f) kind = RoadPerception.LanePath.KIND_BOUNDARY;
+        else kind = RoadPerception.LanePath.KIND_UNKNOWN;
+
         float averageScore = scoreSum / count;
-        float confidence = RoadPerceptionMath.confidence(count, ROW_SAMPLES,
+        float rawConfidence = RoadPerceptionMath.confidence(count, ROW_SAMPLES,
                 RoadPerceptionMath.clamp(averageScore, 0f, 1f), fit.rSquared);
+        float confidence = RoadPerceptionMath.capHeuristicConfidence(rawConfidence, kind);
         int color = yellowWeight > whiteWeight * 1.08f
                 ? RoadPerception.LanePath.COLOR_YELLOW
                 : whiteWeight > 0f ? RoadPerception.LanePath.COLOR_WHITE
                 : RoadPerception.LanePath.COLOR_UNKNOWN;
-        return new LaneCandidate(fit, confidence, color, count);
+        return new LaneCandidate(fit, confidence, color, kind, count);
+    }
+
+    private float averageLuminance(int[] pixels, int width, int height,
+                                   int fromX, int toX, int y) {
+        int safeY = Math.max(0, Math.min(height - 1, y));
+        int start = Math.max(0, Math.min(width - 1, fromX));
+        int end = Math.max(start, Math.min(width - 1, toX));
+        float sum = 0f;
+        int count = 0;
+        for (int x = start; x <= end; x++) {
+            sum += RoadPerceptionMath.luminance(pixels[safeY * width + x]);
+            count++;
+        }
+        return count == 0 ? 0f : sum / count;
     }
 
     private RoadPerception.LanePath toPath(LaneCandidate lane, int width, int height,
-                                           int horizon, float scaleX, float scaleY) {
+                                            int horizon, float scaleX, float scaleY) {
         if (!lane.valid()) return RoadPerception.LanePath.EMPTY;
         float[] x = new float[PATH_POINTS];
         float[] y = new float[PATH_POINTS];
@@ -127,7 +167,7 @@ final class RoadPerceptionEstimator {
                     0f, width * scaleX);
             y[index] = sampleY * scaleY;
         }
-        return new RoadPerception.LanePath(x, y, lane.color, lane.confidence);
+        return new RoadPerception.LanePath(x, y, lane.color, lane.kind, lane.confidence);
     }
 
     private float corridorConfidence(LaneCandidate left, LaneCandidate right, float horizonY) {
@@ -140,43 +180,58 @@ final class RoadPerceptionEstimator {
         float bottomWidth = rightBottom - leftBottom;
         if (topWidth < 0.025f || topWidth > 0.42f) return 0f;
         if (bottomWidth < 0.24f || bottomWidth > 0.92f) return 0f;
+        if (topWidth >= bottomWidth * 0.72f) return 0f;
         if (leftBottom >= 0.52f || rightBottom <= 0.48f) return 0f;
-        return RoadPerceptionMath.clamp((left.confidence + right.confidence) * 0.5f, 0f, 1f);
+
+        float convergence = RoadPerceptionMath.convergenceScore(left.fit, right.fit);
+        if (convergence <= 0f) return 0f;
+        float confidence = (left.confidence + right.confidence) * 0.5f;
+        confidence *= 0.62f + convergence * 0.38f;
+        boolean physicalBoundary = left.kind == RoadPerception.LanePath.KIND_BOUNDARY
+                || right.kind == RoadPerception.LanePath.KIND_BOUNDARY;
+        return RoadPerceptionMath.clamp(confidence, 0f, physicalBoundary ? 0.64f : 0.82f);
     }
 
     private static final class Candidate {
-        static final Candidate NONE = new Candidate(-1, -1f, false, false);
+        static final Candidate NONE = new Candidate(-1, -1f, false, false,
+                RoadPerception.LanePath.KIND_UNKNOWN);
         final int x;
         final float score;
         final boolean white;
         final boolean yellow;
+        final int kind;
 
-        Candidate(int x, float score, boolean white, boolean yellow) {
+        Candidate(int x, float score, boolean white, boolean yellow, int kind) {
             this.x = x;
             this.score = score;
             this.white = white;
             this.yellow = yellow;
+            this.kind = kind;
         }
     }
 
     private static final class LaneCandidate {
         static final LaneCandidate INVALID = new LaneCandidate(
                 RoadPerceptionMath.Fit.INVALID, 0f,
-                RoadPerception.LanePath.COLOR_UNKNOWN, 0);
+                RoadPerception.LanePath.COLOR_UNKNOWN,
+                RoadPerception.LanePath.KIND_UNKNOWN, 0);
         final RoadPerceptionMath.Fit fit;
         final float confidence;
         final int color;
+        final int kind;
         final int samples;
 
-        LaneCandidate(RoadPerceptionMath.Fit fit, float confidence, int color, int samples) {
+        LaneCandidate(RoadPerceptionMath.Fit fit, float confidence,
+                      int color, int kind, int samples) {
             this.fit = fit;
             this.confidence = confidence;
             this.color = color;
+            this.kind = kind;
             this.samples = samples;
         }
 
         boolean valid() {
-            return fit.valid && samples >= 4 && confidence >= 0.20f;
+            return fit.valid && samples >= 5 && confidence >= 0.20f;
         }
     }
 }
