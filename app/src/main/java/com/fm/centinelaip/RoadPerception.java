@@ -29,22 +29,37 @@ final class RoadPerception {
         return left.isValid() && right.isValid() && corridorConfidence >= 0.25f;
     }
 
+    boolean usesPhysicalBoundaries() {
+        return left.kind == LanePath.KIND_BOUNDARY || right.kind == LanePath.KIND_BOUNDARY;
+    }
+
     static final class LanePath {
         static final int COLOR_UNKNOWN = 0;
         static final int COLOR_WHITE = 1;
         static final int COLOR_YELLOW = 2;
+
+        static final int KIND_UNKNOWN = 0;
+        static final int KIND_MARKING = 1;
+        static final int KIND_BOUNDARY = 2;
+
         static final LanePath EMPTY = new LanePath(new float[0], new float[0],
-                COLOR_UNKNOWN, 0f);
+                COLOR_UNKNOWN, KIND_UNKNOWN, 0f);
 
         final float[] x;
         final float[] y;
         final int markingColor;
+        final int kind;
         final float confidence;
 
         LanePath(float[] x, float[] y, int markingColor, float confidence) {
+            this(x, y, markingColor, KIND_UNKNOWN, confidence);
+        }
+
+        LanePath(float[] x, float[] y, int markingColor, int kind, float confidence) {
             this.x = x == null ? new float[0] : Arrays.copyOf(x, x.length);
             this.y = y == null ? new float[0] : Arrays.copyOf(y, y.length);
             this.markingColor = markingColor;
+            this.kind = kind;
             this.confidence = RoadPerceptionMath.clamp(confidence, 0f, 1f);
         }
 
