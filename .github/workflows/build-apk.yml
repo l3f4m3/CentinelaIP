@@ -1,17 +1,17 @@
-name: Compilar APK
+name: Validar y compilar APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, "agent/**"]
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: CentinelaIP v0.4.2
+    name: ADA v0.5.0-alpha11
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -39,37 +39,72 @@ jobs:
             https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.onnx
           echo "2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7  app/src/main/assets/yolo26n.onnx" | sha256sum --check
 
+      - name: Ejecutar pruebas unitarias
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:testReleaseUnitTest 2>&1 | tee gradle-test.log
+
       - name: Compilar APK release instalable
-        run: gradle --no-daemon :app:assembleRelease
-
-      - name: Verificar resultado
         shell: bash
         run: |
-          test -s app/build/outputs/apk/release/app-release.apk
-          unzip -t app/build/outputs/apk/release/app-release.apk
-          sha256sum app/build/outputs/apk/release/app-release.apk
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:assembleRelease 2>&1 | tee gradle-build.log
 
-      - name: Publicar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: CentinelaIP-v0.4.2-APK
-          path: app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Preparar herramienta de firma Android
+      - name: Verificar APK y firma
         shell: bash
         run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          ASSET=ADA_Car-v0.5.0-alpha11.apk
+          CHECKSUM=ADA_Car-v0.5.0-alpha11.sha256
+          test -s "$APK"
+          unzip -t "$APK"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          test -n "$SDK_ROOT"
-          test -f "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar"
-          mkdir -p signing-tools
-          cp "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" signing-tools/apksigner.jar
+          java -jar "$SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" verify --verbose --print-certs "$APK"
+          cp "$APK" "$ASSET"
+          sha256sum "$ASSET" | tee "$CHECKSUM"
 
-      - name: Publicar herramienta de firma Android
+      - name: Publicar diagnóstico de CI
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Android-apksigner-35
-          path: signing-tools/apksigner.jar
+          name: ADA-v0.5.0-alpha11-CI-logs
+          path: |
+            gradle-test.log
+            gradle-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Publicar APK validada como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ADA-v0.5.0-alpha11-APK
+          path: |
+            ADA_Car-v0.5.0-alpha11.apk
+            ADA_Car-v0.5.0-alpha11.sha256
+            app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publicar APK en GitHub Releases
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=v0.5.0-alpha11
+          ASSET=ADA_Car-v0.5.0-alpha11.apk
+          CHECKSUM=ADA_Car-v0.5.0-alpha11.sha256
+          NOTES="Habilita XNNPACK con fallback automático a ORT CPU y fusiona persona+bicicleta o persona+motocicleta en actores ciclista/motociclista cuando la asociación geométrica es fuerte."
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$ASSET" "$CHECKSUM" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "ADA_Car v0.5.0-alpha11" \
+              --prerelease \
+              --notes "$NOTES"
+          fi
