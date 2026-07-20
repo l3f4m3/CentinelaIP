@@ -35,6 +35,7 @@ final class RoadObjectTracker {
     private static final int MAX_MISSED = 4;
     private static final float DISTANCE_ALPHA = 0.32f;
     private static final float SPEED_ALPHA = 0.30f;
+    private static final int MIN_DYNAMIC_FRAMES = 4;
 
     private final List<Track> tracks = new ArrayList<>();
     private int nextId = 1;
@@ -167,14 +168,26 @@ final class RoadObjectTracker {
         return best;
     }
 
-    private static RiskLevel classify(float distance, float closingSpeed, float ttc,
-                                      int stableFrames, boolean corridor) {
+    static RiskLevel classifyRisk(float distance, float closingSpeed, float ttc,
+                                  int stableFrames, boolean corridor) {
         if (!Float.isFinite(distance)) return RiskLevel.UNKNOWN;
-        if (!corridor || stableFrames < 2) return RiskLevel.SAFE;
-        if ((Float.isFinite(ttc) && ttc <= 2.0f) || distance <= 4.5f) return RiskLevel.CRITICAL;
-        if ((Float.isFinite(ttc) && ttc <= 4.0f) || distance <= 10f) return RiskLevel.WARNING;
-        if ((Float.isFinite(ttc) && ttc <= 7.0f) || distance <= 22f
-                || (Float.isFinite(closingSpeed) && closingSpeed >= 5f)) return RiskLevel.ATTENTION;
+        if (!corridor || stableFrames < 3) return RiskLevel.SAFE;
+
+        boolean closing = Float.isFinite(closingSpeed) && closingSpeed > 0.45f;
+        if ((Float.isFinite(ttc) && ttc <= 2.0f)
+                || distance <= 1.5f
+                || (distance <= 2.5f && closing)) {
+            return RiskLevel.CRITICAL;
+        }
+        if ((Float.isFinite(ttc) && ttc <= 4.0f)
+                || (distance <= 6f && closing)) {
+            return RiskLevel.WARNING;
+        }
+        if ((Float.isFinite(ttc) && ttc <= 8.0f)
+                || distance <= 12f
+                || (Float.isFinite(closingSpeed) && closingSpeed >= 4f)) {
+            return RiskLevel.ATTENTION;
+        }
         return RiskLevel.SAFE;
     }
 
@@ -273,8 +286,10 @@ final class RoadObjectTracker {
             float centerX = (detection.left + detection.right) * 0.5f;
             boolean corridor = centerX >= frameWidth * 0.27f && centerX <= frameWidth * 0.73f
                     && detection.bottom >= frameHeight * 0.30f;
-            RiskLevel risk = classify(distance, closingSpeed, ttc, stableFrames, corridor);
-            return detection.withTracking(id, distance, closingSpeed, ttc, risk,
+            float stableClosing = stableFrames >= MIN_DYNAMIC_FRAMES ? closingSpeed : Float.NaN;
+            float stableTtc = stableFrames >= MIN_DYNAMIC_FRAMES ? ttc : Float.NaN;
+            RiskLevel risk = classifyRisk(distance, stableClosing, stableTtc, stableFrames, corridor);
+            return detection.withTracking(id, distance, stableClosing, stableTtc, risk,
                     colorFor(risk, detection.color));
         }
     }
