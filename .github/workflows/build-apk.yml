@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: ADA v0.5.0-alpha08
+    name: ADA v0.5.0-alpha09
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -55,8 +55,8 @@ jobs:
         shell: bash
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
-          ASSET=ADA_Car-v0.5.0-alpha08.apk
-          CHECKSUM=ADA_Car-v0.5.0-alpha08.sha256
+          ASSET=ADA_Car-v0.5.0-alpha09.apk
+          CHECKSUM=ADA_Car-v0.5.0-alpha09.sha256
           test -s "$APK"
           unzip -t "$APK"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
@@ -68,7 +68,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ADA-v0.5.0-alpha08-CI-logs
+          name: ADA-v0.5.0-alpha09-CI-logs
           path: |
             gradle-test.log
             gradle-build.log
@@ -78,10 +78,10 @@ jobs:
       - name: Publicar APK validada como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: ADA-v0.5.0-alpha08-APK
+          name: ADA-v0.5.0-alpha09-APK
           path: |
-            ADA_Car-v0.5.0-alpha08.apk
-            ADA_Car-v0.5.0-alpha08.sha256
+            ADA_Car-v0.5.0-alpha09.apk
+            ADA_Car-v0.5.0-alpha09.sha256
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: error
           retention-days: 30
@@ -95,9 +95,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          TAG=v0.5.0-alpha08
-          ASSET=ADA_Car-v0.5.0-alpha08.apk
-          CHECKSUM=ADA_Car-v0.5.0-alpha08.sha256
+          TAG=v0.5.0-alpha09
+          ASSET=ADA_Car-v0.5.0-alpha09.apk
+          CHECKSUM=ADA_Car-v0.5.0-alpha09.sha256
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
               --repo "$GITHUB_REPOSITORY" --clobber
@@ -105,7 +105,7 @@ jobs:
             gh release create "$TAG" "$ASSET" "$CHECKSUM" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$TARGET_SHA" \
-              --title "ADA_Car v0.5.0-alpha08" \
+              --title "ADA_Car v0.5.0-alpha09" \
               --prerelease \
-              --notes "APK experimental con detección local de marcas blancas/amarillas y corredor de vía. Es un baseline heurístico con confianza visible; no representa segmentación certificada ni trayectoria segura."
+              --notes "Video y cámara llenan el área visible mediante recorte centrado sin deformación. Doble toque alterna entre Llenar y Ajustar; detecciones, carriles y HUD comparten la misma geometría."
           fi
