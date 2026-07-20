@@ -17,7 +17,9 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
@@ -37,6 +39,7 @@ final class YoloDetector implements AutoCloseable {
 
     private final OrtEnvironment environment;
     private final OrtSession session;
+    private final String backendLabel;
     private final String inputName;
     private final List<String> labels;
     private final RoadObjectTracker tracker = new RoadObjectTracker();
@@ -65,11 +68,9 @@ final class YoloDetector implements AutoCloseable {
         }
         this.labels = new ArrayList<>(labels);
         environment = OrtEnvironment.getEnvironment();
-        OrtSession.SessionOptions options = new OrtSession.SessionOptions();
-        options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
-        options.setIntraOpNumThreads(Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() - 1)));
-        options.setInterOpNumThreads(1);
-        session = environment.createSession(model, options);
+        SessionBundle sessionBundle = createOptimizedSession(environment, model);
+        session = sessionBundle.session;
+        backendLabel = sessionBundle.backendLabel;
         inputName = session.getInputNames().iterator().next();
 
         TensorInfo inputInfo = (TensorInfo) session.getInputInfo().get(inputName).getInfo();
@@ -93,6 +94,10 @@ final class YoloDetector implements AutoCloseable {
             throw new IllegalArgumentException(
                     "La salida debe ser YOLO26 end-to-end con forma 1xNx6");
         }
+    }
+
+    String backendLabel() {
+        return backendLabel;
     }
 
     List<Detection> detect(Bitmap source, float threshold) throws OrtException {
@@ -156,8 +161,9 @@ final class YoloDetector implements AutoCloseable {
                         labels.get(classId), PALETTE[classId % PALETTE.length]));
             }
             List<Detection> finalDetections = highestConfidence(candidates);
-            return tracker.update(finalDetections, source.getWidth(), source.getHeight(),
-                    System.nanoTime()).detections;
+            List<Detection> tracked = tracker.update(finalDetections,
+                    source.getWidth(), source.getHeight(), System.nanoTime()).detections;
+            return RoadActorFusion.fuse(tracked);
         }
     }
 
@@ -171,6 +177,44 @@ final class YoloDetector implements AutoCloseable {
         candidates.sort(Comparator.comparingDouble((Detection d) -> d.confidence).reversed());
         if (candidates.size() <= MAX_DETECTIONS) return candidates;
         return new ArrayList<>(candidates.subList(0, MAX_DETECTIONS));
+    }
+
+    private static SessionBundle createOptimizedSession(
+            OrtEnvironment environment, byte[] model) throws OrtException {
+        int workerThreads = Math.max(2,
+                Math.min(4, Runtime.getRuntime().availableProcessors() - 1));
+        OrtException accelerationError = null;
+        OrtSession.SessionOptions xnnpackOptions = new OrtSession.SessionOptions();
+        try {
+            configureCommon(xnnpackOptions);
+            xnnpackOptions.setIntraOpNumThreads(1);
+            Map<String, String> providerOptions = new HashMap<>();
+            providerOptions.put("intra_op_num_threads", Integer.toString(workerThreads));
+            xnnpackOptions.addXnnpack(providerOptions);
+            return new SessionBundle(
+                    environment.createSession(model, xnnpackOptions), "XNNPACK+ORT");
+        } catch (OrtException error) {
+            accelerationError = error;
+        } finally {
+            xnnpackOptions.close();
+        }
+
+        OrtSession.SessionOptions cpuOptions = new OrtSession.SessionOptions();
+        try {
+            configureCommon(cpuOptions);
+            cpuOptions.setIntraOpNumThreads(workerThreads);
+            return new SessionBundle(environment.createSession(model, cpuOptions), "ORT CPU");
+        } catch (OrtException cpuError) {
+            if (accelerationError != null) cpuError.addSuppressed(accelerationError);
+            throw cpuError;
+        } finally {
+            cpuOptions.close();
+        }
+    }
+
+    private static void configureCommon(OrtSession.SessionOptions options) throws OrtException {
+        options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
+        options.setInterOpNumThreads(1);
     }
 
     private static float clamp(float value, float min, float max) {
@@ -196,5 +240,15 @@ final class YoloDetector implements AutoCloseable {
     public void close() throws Exception {
         RoadPerceptionStore.clear();
         session.close();
+    }
+
+    private static final class SessionBundle {
+        final OrtSession session;
+        final String backendLabel;
+
+        SessionBundle(OrtSession session, String backendLabel) {
+            this.session = session;
+            this.backendLabel = backendLabel;
+        }
     }
 }
