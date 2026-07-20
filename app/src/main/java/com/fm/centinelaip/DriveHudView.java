@@ -70,6 +70,7 @@ final class DriveHudView extends View {
         helpPaint.setColor(Color.WHITE);
         helpPaint.setTextSize(dp(11f));
         helpPaint.setFakeBoldText(true);
+        helpPaint.setTextAlign(Paint.Align.RIGHT);
         helpPaint.setShadowLayer(dp(4f), 0f, 0f, Color.BLACK);
         updatePalette();
     }
@@ -162,6 +163,12 @@ final class DriveHudView extends View {
         float width = right - left;
         float height = bottom - top;
 
+        RoadPerception automatic = RoadPerceptionStore.latest(sourceWidth, sourceHeight);
+        boolean automaticCorridor = automatic != RoadPerception.EMPTY
+                && automatic.hasCorridor()
+                && automatic.corridorConfidence >= 0.30f;
+        boolean drawManual = gestureActive || !automaticCorridor;
+
         float pitchOffset = calibrated
                 ? DriveTelemetryMath.clamp(pitchDegrees, -20f, 20f) / 100f : 0f;
         float horizonRatio = DriveTelemetryMath.clamp(
@@ -176,39 +183,47 @@ final class DriveHudView extends View {
                 ? DriveTelemetryMath.clamp(-rollDegrees * 0.35f, -10f, 10f) : 0f;
         float totalRoll = DriveTelemetryMath.clamp(sensorRoll + manualRoll, -18f, 18f);
 
-        canvas.save();
-        canvas.clipRect(left, top, right, bottom);
-        canvas.rotate(totalRoll, center, horizon);
+        if (drawManual) {
+            canvas.save();
+            canvas.clipRect(left, top, right, bottom);
+            canvas.rotate(totalRoll, center, horizon);
 
-        Path road = new Path();
-        road.moveTo(center - farHalf, horizon);
-        road.lineTo(center + farHalf, horizon);
-        road.lineTo(center + nearHalf, bottom);
-        road.lineTo(center - nearHalf, bottom);
-        road.close();
-        canvas.drawPath(road, fillPaint);
+            Path road = new Path();
+            road.moveTo(center - farHalf, horizon);
+            road.lineTo(center + farHalf, horizon);
+            road.lineTo(center + nearHalf, bottom);
+            road.lineTo(center - nearHalf, bottom);
+            road.close();
+            canvas.drawPath(road, fillPaint);
 
-        canvas.drawLine(center - farHalf, horizon, center - nearHalf, bottom, guidePaint);
-        canvas.drawLine(center + farHalf, horizon, center + nearHalf, bottom, guidePaint);
-        canvas.drawLine(center, horizon, center, bottom, guidePaint);
-        canvas.drawLine(Math.max(left, center - width * 0.18f), horizon,
-                Math.min(right, center + width * 0.18f), horizon, horizonPaint);
+            canvas.drawLine(center - farHalf, horizon, center - nearHalf, bottom, guidePaint);
+            canvas.drawLine(center + farHalf, horizon, center + nearHalf, bottom, guidePaint);
+            canvas.drawLine(center, horizon, center, bottom, guidePaint);
+            canvas.drawLine(Math.max(left, center - width * 0.18f), horizon,
+                    Math.min(right, center + width * 0.18f), horizon, horizonPaint);
 
-        for (int index = 1; index <= 4; index++) {
-            float progress = index / 5f;
-            float y = horizon + (bottom - horizon) * progress * progress;
-            float half = farHalf + (nearHalf - farHalf) * progress;
-            canvas.drawLine(center - half, y, center + half, y, horizonPaint);
+            for (int index = 1; index <= 4; index++) {
+                float progress = index / 5f;
+                float y = horizon + (bottom - horizon) * progress * progress;
+                float half = farHalf + (nearHalf - farHalf) * progress;
+                canvas.drawLine(center - half, y, center + half, y, horizonPaint);
+            }
+            canvas.restore();
         }
-        canvas.restore();
 
         String mode = DisplayModeStore.isFillScreen() ? "LLENAR" : "AJUSTAR";
-        String state = (calibrated ? "HUD CALIBRADO" : "HUD VISUAL · MONTAJE SIN CALIBRAR")
-                + " · " + mode;
-        canvas.drawText(state, left + dp(10f), top + dp(18f), helpPaint);
+        String state;
+        if (automaticCorridor) {
+            state = (automatic.usesPhysicalBoundaries() ? "BORDES AUTO" : "CARRIL AUTO")
+                    + " · " + mode;
+        } else {
+            state = (calibrated ? "HUD CALIBRADO" : "HUD VISUAL · SIN CALIBRAR")
+                    + " · " + mode;
+        }
+        canvas.drawText(state, right - dp(10f), top + dp(18f), helpPaint);
         if (gestureActive) {
             canvas.drawText("2 dedos: mover, pellizcar y girar · 3 dedos: restablecer",
-                    left + dp(10f), top + dp(36f), helpPaint);
+                    right - dp(10f), top + dp(36f), helpPaint);
         }
     }
 
