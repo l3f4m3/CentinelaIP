@@ -60,8 +60,8 @@ public class RoadObjectTrackerTest {
                 result.detections.get(0).riskLevel);
     }
 
-    @Test public void distanceFourMetersWithLongTtcIsAttentionNotCritical() {
-        assertEquals(RoadObjectTracker.RiskLevel.ATTENTION,
+    @Test public void distanceFourMetersWithLongTtcIsWarningNotCritical() {
+        assertEquals(RoadObjectTracker.RiskLevel.WARNING,
                 RoadObjectTracker.classifyRisk(4f, 0.6f, 7.1f, 6, true));
     }
 
