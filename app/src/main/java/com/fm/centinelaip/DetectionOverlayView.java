@@ -85,25 +85,26 @@ public final class DetectionOverlayView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (sourceWidth <= 0 || sourceHeight <= 0) return;
-        float[] viewport = MediaViewport.fitCenter(
+        float[] content = MediaViewport.current(
                 getWidth(), getHeight(), sourceWidth, sourceHeight);
-        if (!MediaViewport.valid(viewport)) return;
+        float[] visible = MediaViewport.visible(
+                getWidth(), getHeight(), sourceWidth, sourceHeight);
+        if (!MediaViewport.valid(content) || !MediaViewport.valid(visible)) return;
 
-        float viewportWidth = viewport[2] - viewport[0];
-        float scale = viewportWidth / sourceWidth;
-        float offsetX = viewport[0];
-        float offsetY = viewport[1];
-        float viewportRight = viewport[2];
-        float viewportBottom = viewport[3];
+        float scale = (content[2] - content[0]) / sourceWidth;
+        float offsetX = content[0];
+        float offsetY = content[1];
 
         canvas.save();
-        canvas.clipRect(viewport[0], viewport[1], viewportRight, viewportBottom);
-        drawRoadPerception(canvas, scale, offsetX, offsetY);
-        drawDetections(canvas, scale, offsetX, offsetY, viewportRight, viewportBottom);
+        canvas.clipRect(visible[0], visible[1], visible[2], visible[3]);
+        drawRoadPerception(canvas, scale, offsetX, offsetY, visible[0], visible[1]);
+        drawDetections(canvas, scale, offsetX, offsetY,
+                visible[0], visible[1], visible[2], visible[3]);
         canvas.restore();
     }
 
-    private void drawRoadPerception(Canvas canvas, float scale, float offsetX, float offsetY) {
+    private void drawRoadPerception(Canvas canvas, float scale, float offsetX, float offsetY,
+                                    float visibleLeft, float visibleTop) {
         RoadPerception road = RoadPerceptionStore.latest(sourceWidth, sourceHeight);
         if (road == RoadPerception.EMPTY) return;
 
@@ -130,7 +131,7 @@ public final class DetectionOverlayView extends View {
         float best = Math.max(road.left.confidence, road.right.confidence);
         if (best >= 0.25f) {
             String text = String.format(Locale.US, "VÍA %.0f%%", best * 100f);
-            canvas.drawText(text, offsetX + dp(8f), offsetY + dp(16f), roadTextPaint);
+            canvas.drawText(text, visibleLeft + dp(8f), visibleTop + dp(16f), roadTextPaint);
         }
     }
 
@@ -157,29 +158,34 @@ public final class DetectionOverlayView extends View {
     }
 
     private void drawDetections(Canvas canvas, float scale, float offsetX, float offsetY,
-                                float viewportRight, float viewportBottom) {
+                                float visibleLeft, float visibleTop,
+                                float visibleRight, float visibleBottom) {
         for (Detection detection : detections) {
             float left = offsetX + detection.left * scale;
             float top = offsetY + detection.top * scale;
             float right = offsetX + detection.right * scale;
             float bottom = offsetY + detection.bottom * scale;
+            if (right < visibleLeft || left > visibleRight
+                    || bottom < visibleTop || top > visibleBottom) continue;
+
             boxPaint.setColor(detection.color);
             boxPaint.setShadowLayer(dp(6), 0f, 0f, detection.color);
             canvas.drawRoundRect(new RectF(left, top, right, bottom), dp(5), dp(5), boxPaint);
 
             String label = formatLabel(detection);
-            float availableWidth = Math.max(0f, viewportRight - left - dp(8));
+            float labelLeft = Math.max(visibleLeft, left);
+            float availableWidth = Math.max(0f, visibleRight - labelLeft - dp(8));
             float textWidth = Math.min(textPaint.measureText(label), availableWidth);
             float labelHeight = dp(23);
-            float labelTop = Math.max(offsetY, top - labelHeight);
+            float labelTop = Math.max(visibleTop, top - labelHeight);
             labelPaint.setColor(detection.color);
-            float labelRight = Math.min(viewportRight, left + textWidth + dp(14));
-            float labelBottom = Math.min(viewportBottom, labelTop + labelHeight);
-            canvas.drawRoundRect(new RectF(left, labelTop, labelRight, labelBottom),
+            float labelRight = Math.min(visibleRight, labelLeft + textWidth + dp(14));
+            float labelBottom = Math.min(visibleBottom, labelTop + labelHeight);
+            canvas.drawRoundRect(new RectF(labelLeft, labelTop, labelRight, labelBottom),
                     dp(5), dp(5), labelPaint);
             canvas.save();
-            canvas.clipRect(left, labelTop, labelRight, labelBottom);
-            canvas.drawText(label, left + dp(7), labelTop + dp(15.5f), textPaint);
+            canvas.clipRect(labelLeft, labelTop, labelRight, labelBottom);
+            canvas.drawText(label, labelLeft + dp(7), labelTop + dp(15.5f), textPaint);
             canvas.restore();
         }
     }
