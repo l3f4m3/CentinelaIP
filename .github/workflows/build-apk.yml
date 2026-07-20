@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: ADA v0.5.0-alpha10
+    name: ADA v0.5.0-alpha11
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -55,8 +55,8 @@ jobs:
         shell: bash
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
-          ASSET=ADA_Car-v0.5.0-alpha10.apk
-          CHECKSUM=ADA_Car-v0.5.0-alpha10.sha256
+          ASSET=ADA_Car-v0.5.0-alpha11.apk
+          CHECKSUM=ADA_Car-v0.5.0-alpha11.sha256
           test -s "$APK"
           unzip -t "$APK"
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
@@ -68,7 +68,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ADA-v0.5.0-alpha10-CI-logs
+          name: ADA-v0.5.0-alpha11-CI-logs
           path: |
             gradle-test.log
             gradle-build.log
@@ -78,10 +78,10 @@ jobs:
       - name: Publicar APK validada como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: ADA-v0.5.0-alpha10-APK
+          name: ADA-v0.5.0-alpha11-APK
           path: |
-            ADA_Car-v0.5.0-alpha10.apk
-            ADA_Car-v0.5.0-alpha10.sha256
+            ADA_Car-v0.5.0-alpha11.apk
+            ADA_Car-v0.5.0-alpha11.sha256
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: error
           retention-days: 30
@@ -92,10 +92,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=v0.5.0-alpha10
-          ASSET=ADA_Car-v0.5.0-alpha10.apk
-          CHECKSUM=ADA_Car-v0.5.0-alpha10.sha256
-          NOTES="Distingue demarcaciones de bordes físicos, limita la confianza heurística, oculta la guía manual cuando existe corredor automático estable y endurece las alertas de TTC para evitar falsos críticos."
+          TAG=v0.5.0-alpha11
+          ASSET=ADA_Car-v0.5.0-alpha11.apk
+          CHECKSUM=ADA_Car-v0.5.0-alpha11.sha256
+          NOTES="Habilita XNNPACK con fallback automático a ORT CPU y fusiona persona+bicicleta o persona+motocicleta en actores ciclista/motociclista cuando la asociación geométrica es fuerte."
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
@@ -104,7 +104,7 @@ jobs:
             gh release create "$TAG" "$ASSET" "$CHECKSUM" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "ADA_Car v0.5.0-alpha10" \
+              --title "ADA_Car v0.5.0-alpha11" \
               --prerelease \
               --notes "$NOTES"
           fi
