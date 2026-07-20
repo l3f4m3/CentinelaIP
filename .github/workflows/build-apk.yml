@@ -87,36 +87,24 @@ jobs:
           retention-days: 30
 
       - name: Publicar APK en GitHub Releases
-        if: >-
-          (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/')) ||
-          (github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/'))
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           TAG=v0.5.0-alpha09
           ASSET=ADA_Car-v0.5.0-alpha09.apk
           CHECKSUM=ADA_Car-v0.5.0-alpha09.sha256
           NOTES="Video y cámara llenan el área visible mediante recorte centrado sin deformación. Doble toque alterna entre Llenar y Ajustar; detecciones, carriles y HUD comparten la misma geometría."
 
-          for attempt in 1 2 3 4 5; do
-            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
-                --repo "$GITHUB_REPOSITORY" --clobber
-              exit 0
-            fi
-
-            if gh release create "$TAG" "$ASSET" "$CHECKSUM" \
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$ASSET" "$CHECKSUM" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "$TARGET_SHA" \
+              --target "$GITHUB_SHA" \
               --title "ADA_Car v0.5.0-alpha09" \
               --prerelease \
-              --notes "$NOTES"; then
-              exit 0
-            fi
-            sleep $((attempt * 3))
-          done
-
-          gh release upload "$TAG" "$ASSET" "$CHECKSUM" \
-            --repo "$GITHUB_REPOSITORY" --clobber
+              --notes "$NOTES"
+          fi
