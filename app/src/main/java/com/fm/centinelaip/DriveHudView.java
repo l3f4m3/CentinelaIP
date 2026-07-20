@@ -4,15 +4,23 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.TextureView;
 import android.view.View;
+import android.view.ViewGroup;
+
+import androidx.camera.view.PreviewView;
 
 /** HUD visual ajustable. Todavía no representa carriles detectados ni geometría métrica. */
 final class DriveHudView extends View {
     private static final String PREFS = "ada_hud_manual";
+    private static final String KEY_FILL_SCREEN = "display_fill_screen";
+    private static final long DOUBLE_TAP_MS = 360L;
 
     private final Paint guidePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -23,6 +31,7 @@ final class DriveHudView extends View {
     private boolean active = true;
     private boolean calibrated;
     private boolean gestureActive;
+    private boolean multiTouchSequence;
     private float pitchDegrees;
     private float rollDegrees;
     private int sourceWidth;
@@ -42,12 +51,16 @@ final class DriveHudView extends View {
     private float baseCenterOffset;
     private float baseCorridorScale;
     private float baseManualRoll;
+    private long lastTapMs;
+    private float lastTapX;
+    private float lastTapY;
 
     DriveHudView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setWillNotDraw(false);
         setClickable(true);
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        DisplayModeStore.setFillScreen(preferences.getBoolean(KEY_FILL_SCREEN, true));
 
         guidePaint.setStyle(Paint.Style.STROKE);
         guidePaint.setStrokeWidth(dp(2f));
@@ -75,6 +88,7 @@ final class DriveHudView extends View {
             profileKey = nextKey;
             loadProfile();
         }
+        applyDisplayModeToSiblings();
         invalidate();
     }
 
@@ -137,7 +151,7 @@ final class DriveHudView extends View {
         if (!active || getWidth() <= 0 || getHeight() <= 0
                 || sourceWidth <= 0 || sourceHeight <= 0) return;
 
-        float[] viewport = MediaViewport.fitCenter(
+        float[] viewport = MediaViewport.visible(
                 getWidth(), getHeight(), sourceWidth, sourceHeight);
         if (!MediaViewport.valid(viewport)) return;
 
@@ -148,7 +162,6 @@ final class DriveHudView extends View {
         float width = right - left;
         float height = bottom - top;
 
-        // Una orientación absoluta sin calibración del soporte no describe la carretera.
         float pitchOffset = calibrated
                 ? DriveTelemetryMath.clamp(pitchDegrees, -20f, 20f) / 100f : 0f;
         float horizonRatio = DriveTelemetryMath.clamp(
@@ -189,7 +202,9 @@ final class DriveHudView extends View {
         }
         canvas.restore();
 
-        String state = calibrated ? "HUD CALIBRADO" : "HUD VISUAL · MONTAJE SIN CALIBRAR";
+        String mode = DisplayModeStore.isFillScreen() ? "LLENAR" : "AJUSTAR";
+        String state = (calibrated ? "HUD CALIBRADO" : "HUD VISUAL · MONTAJE SIN CALIBRAR")
+                + " · " + mode;
         canvas.drawText(state, left + dp(10f), top + dp(18f), helpPaint);
         if (gestureActive) {
             canvas.drawText("2 dedos: mover, pellizcar y girar · 3 dedos: restablecer",
@@ -199,7 +214,7 @@ final class DriveHudView extends View {
 
     @Override public boolean onTouchEvent(MotionEvent event) {
         if (!active || sourceWidth <= 0 || sourceHeight <= 0) return false;
-        float[] viewport = MediaViewport.fitCenter(
+        float[] viewport = MediaViewport.visible(
                 getWidth(), getHeight(), sourceWidth, sourceHeight);
         if (!MediaViewport.valid(viewport)) return false;
 
@@ -208,6 +223,7 @@ final class DriveHudView extends View {
             return inside(viewport, event.getX(), event.getY());
         }
         if (action == MotionEvent.ACTION_POINTER_DOWN) {
+            multiTouchSequence = true;
             if (event.getPointerCount() >= 3) {
                 gestureActive = false;
                 resetProfile();
@@ -249,15 +265,71 @@ final class DriveHudView extends View {
             invalidate();
             return true;
         }
-        if (action == MotionEvent.ACTION_POINTER_UP
-                || action == MotionEvent.ACTION_UP
-                || action == MotionEvent.ACTION_CANCEL) {
+        if (action == MotionEvent.ACTION_POINTER_UP) {
             if (gestureActive) saveProfile();
             gestureActive = false;
             invalidate();
             return true;
         }
+        if (action == MotionEvent.ACTION_UP) {
+            if (gestureActive) saveProfile();
+            gestureActive = false;
+            if (multiTouchSequence) {
+                multiTouchSequence = false;
+                invalidate();
+                return true;
+            }
+            handleTap(event.getX(), event.getY());
+            return true;
+        }
+        if (action == MotionEvent.ACTION_CANCEL) {
+            gestureActive = false;
+            multiTouchSequence = false;
+            invalidate();
+            return true;
+        }
         return true;
+    }
+
+    private void handleTap(float x, float y) {
+        long now = SystemClock.uptimeMillis();
+        float dx = x - lastTapX;
+        float dy = y - lastTapY;
+        if (now - lastTapMs <= DOUBLE_TAP_MS && dx * dx + dy * dy <= dp(48f) * dp(48f)) {
+            boolean fill = DisplayModeStore.toggle();
+            preferences.edit().putBoolean(KEY_FILL_SCREEN, fill).apply();
+            lastTapMs = 0L;
+            applyDisplayModeToSiblings();
+            invalidate();
+            return;
+        }
+        lastTapMs = now;
+        lastTapX = x;
+        lastTapY = y;
+    }
+
+    private void applyDisplayModeToSiblings() {
+        if (!(getParent() instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) getParent();
+        for (int index = 0; index < parent.getChildCount(); index++) {
+            View child = parent.getChildAt(index);
+            if (child instanceof DetectionOverlayView) {
+                child.invalidate();
+            } else if (child instanceof TextureView && sourceWidth > 0 && sourceHeight > 0) {
+                TextureView texture = (TextureView) child;
+                if (texture.getWidth() <= 0 || texture.getHeight() <= 0) continue;
+                float[] scale = VideoGeometry.fitScale(
+                        texture.getWidth(), texture.getHeight(), sourceWidth, sourceHeight);
+                Matrix matrix = new Matrix();
+                matrix.setScale(scale[0], scale[1],
+                        texture.getWidth() / 2f, texture.getHeight() / 2f);
+                texture.setTransform(matrix);
+            } else if (child instanceof PreviewView) {
+                ((PreviewView) child).setScaleType(DisplayModeStore.isFillScreen()
+                        ? PreviewView.ScaleType.FILL_CENTER
+                        : PreviewView.ScaleType.FIT_CENTER);
+            }
+        }
     }
 
     private boolean inside(float[] rect, float x, float y) {
