@@ -24,6 +24,26 @@ public final class RoadPerceptionMathTest {
     }
 
     @Test
+    public void clasificaDemarcacionConPavimentoSimilarAmbosLados() {
+        assertEquals(RoadPerception.LanePath.KIND_MARKING,
+                RoadPerceptionMath.classifyLineContext(0.92f, 0.38f, 0.41f));
+    }
+
+    @Test
+    public void clasificaBordeCuandoSeparaSuperficiesDistintas() {
+        assertEquals(RoadPerception.LanePath.KIND_BOUNDARY,
+                RoadPerceptionMath.classifyLineContext(0.90f, 0.28f, 0.62f));
+    }
+
+    @Test
+    public void confianzaDeBordeNoSePresentaComoCertidumbre() {
+        assertEquals(0.68f, RoadPerceptionMath.capHeuristicConfidence(
+                0.98f, RoadPerception.LanePath.KIND_BOUNDARY), 0.0001f);
+        assertEquals(0.86f, RoadPerceptionMath.capHeuristicConfidence(
+                0.98f, RoadPerception.LanePath.KIND_MARKING), 0.0001f);
+    }
+
+    @Test
     public void ajustaLineaIzquierdaNormalizada() {
         float[] y = {0.40f, 0.55f, 0.70f, 0.85f, 0.98f};
         float[] x = {0.46f, 0.39f, 0.32f, 0.25f, 0.19f};
@@ -42,6 +62,20 @@ public final class RoadPerceptionMathTest {
         assertTrue(fit.valid);
         assertTrue(fit.slope > 0.40f);
         assertTrue(fit.rSquared > 0.99f);
+    }
+
+    @Test
+    public void convergenciaCompatibleRecibePuntaje() {
+        RoadPerceptionMath.Fit left = new RoadPerceptionMath.Fit(-0.48f, 0.67f, 0.98f, true);
+        RoadPerceptionMath.Fit right = new RoadPerceptionMath.Fit(0.48f, 0.33f, 0.98f, true);
+        assertTrue(RoadPerceptionMath.convergenceScore(left, right) > 0.70f);
+    }
+
+    @Test
+    public void lineasParalelasNoFormanCorredor() {
+        RoadPerceptionMath.Fit left = new RoadPerceptionMath.Fit(-0.04f, 0.30f, 0.98f, true);
+        RoadPerceptionMath.Fit right = new RoadPerceptionMath.Fit(0.04f, 0.70f, 0.98f, true);
+        assertEquals(0f, RoadPerceptionMath.convergenceScore(left, right), 0.0001f);
     }
 
     @Test
