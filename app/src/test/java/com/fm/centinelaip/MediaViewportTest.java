@@ -7,19 +7,33 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public class MediaViewportTest {
-    @Test public void videoVerticalSeCentraSinInvadirMargenes() {
+    @Test public void videoVerticalSeCentraEnModoAjustar() {
         assertArrayEquals(new float[]{375f, 0f, 625f, 500f},
                 MediaViewport.fitCenter(1000, 500, 500, 1000), 0.01f);
     }
 
-    @Test public void videoHorizontalOcupaTodaLaVistaCompatible() {
-        assertArrayEquals(new float[]{0f, 0f, 1000f, 500f},
-                MediaViewport.fitCenter(1000, 500, 1920, 960), 0.01f);
+    @Test public void videoVerticalLlenaLaVistaConRecorteCentrado() {
+        assertArrayEquals(new float[]{0f, -750f, 1000f, 1250f},
+                MediaViewport.centerCrop(1000, 500, 500, 1000), 0.01f);
     }
 
-    @Test public void fuenteCuadradaGeneraMargenesLaterales() {
-        assertArrayEquals(new float[]{250f, 0f, 750f, 500f},
-                MediaViewport.fitCenter(1000, 500, 800, 800), 0.01f);
+    @Test public void modoActualRespetaElEstadoCompartido() {
+        DisplayModeStore.setFillScreen(true);
+        assertArrayEquals(new float[]{0f, -750f, 1000f, 1250f},
+                MediaViewport.current(1000, 500, 500, 1000), 0.01f);
+        assertArrayEquals(new float[]{0f, 0f, 1000f, 500f},
+                MediaViewport.visible(1000, 500, 500, 1000), 0.01f);
+
+        DisplayModeStore.setFillScreen(false);
+        assertArrayEquals(new float[]{375f, 0f, 625f, 500f},
+                MediaViewport.current(1000, 500, 500, 1000), 0.01f);
+    }
+
+    @Test public void videoHorizontalCompatibleOcupaTodaLaVista() {
+        assertArrayEquals(new float[]{0f, 0f, 1000f, 500f},
+                MediaViewport.fitCenter(1000, 500, 1920, 960), 0.01f);
+        assertArrayEquals(new float[]{0f, 0f, 1000f, 500f},
+                MediaViewport.centerCrop(1000, 500, 1920, 960), 0.01f);
     }
 
     @Test public void dimensionesInvalidasNoProducenViewport() {
