@@ -21,6 +21,7 @@ public final class DetectionOverlayView extends View {
     private final Paint lanePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint roadFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint roadTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint roadBadgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private List<Detection> detections = new ArrayList<>();
     private int sourceWidth;
     private int sourceHeight;
@@ -43,6 +44,8 @@ public final class DetectionOverlayView extends View {
         roadTextPaint.setColor(Color.WHITE);
         roadTextPaint.setTextSize(dp(10f));
         roadTextPaint.setFakeBoldText(true);
+        roadBadgePaint.setStyle(Paint.Style.FILL);
+        roadBadgePaint.setColor(Color.argb(178, 3, 8, 15));
     }
 
     void setDetections(List<Detection> values, int width, int height) {
@@ -121,17 +124,31 @@ public final class DetectionOverlayView extends View {
                         mapY(road.right.y[index], scale, offsetY));
             }
             corridor.close();
-            roadFillPaint.setAlpha(Math.round(24 + road.corridorConfidence * 42));
+            int baseAlpha = road.usesPhysicalBoundaries() ? 15 : 24;
+            roadFillPaint.setAlpha(Math.round(baseAlpha + road.corridorConfidence * 34));
             canvas.drawPath(corridor, roadFillPaint);
         }
 
         drawLane(canvas, road.left, scale, offsetX, offsetY);
         drawLane(canvas, road.right, scale, offsetX, offsetY);
 
-        float best = Math.max(road.left.confidence, road.right.confidence);
+        float best = road.hasCorridor()
+                ? road.corridorConfidence
+                : Math.max(road.left.confidence, road.right.confidence);
         if (best >= 0.25f) {
-            String text = String.format(Locale.US, "VÍA %.0f%%", best * 100f);
-            canvas.drawText(text, visibleLeft + dp(8f), visibleTop + dp(16f), roadTextPaint);
+            String type;
+            if (road.hasCorridor() && road.usesPhysicalBoundaries()) type = "BORDES";
+            else if (road.hasCorridor()) type = "CARRIL";
+            else type = "LÍNEA";
+            String text = String.format(Locale.US, "%s %.0f%%", type, best * 100f);
+            float paddingX = dp(7f);
+            float badgeHeight = dp(22f);
+            float badgeLeft = visibleLeft + dp(7f);
+            float badgeTop = visibleTop + dp(7f);
+            float badgeRight = badgeLeft + roadTextPaint.measureText(text) + paddingX * 2f;
+            canvas.drawRoundRect(new RectF(badgeLeft, badgeTop, badgeRight,
+                    badgeTop + badgeHeight), dp(5f), dp(5f), roadBadgePaint);
+            canvas.drawText(text, badgeLeft + paddingX, badgeTop + dp(15f), roadTextPaint);
         }
     }
 
@@ -139,15 +156,21 @@ public final class DetectionOverlayView extends View {
                           float scale, float offsetX, float offsetY) {
         if (!lane.isValid()) return;
         int color;
-        if (lane.markingColor == RoadPerception.LanePath.COLOR_YELLOW) {
+        if (lane.kind == RoadPerception.LanePath.KIND_BOUNDARY) {
+            color = Color.rgb(34, 211, 238);
+            lanePaint.setStrokeWidth(dp(3f));
+        } else if (lane.markingColor == RoadPerception.LanePath.COLOR_YELLOW) {
             color = Color.rgb(255, 205, 48);
+            lanePaint.setStrokeWidth(dp(4f));
         } else if (lane.markingColor == RoadPerception.LanePath.COLOR_WHITE) {
             color = Color.WHITE;
+            lanePaint.setStrokeWidth(dp(4f));
         } else {
-            color = Color.rgb(34, 211, 238);
+            color = Color.rgb(148, 163, 184);
+            lanePaint.setStrokeWidth(dp(3f));
         }
         lanePaint.setColor(color);
-        lanePaint.setAlpha(Math.round(95 + lane.confidence * 160));
+        lanePaint.setAlpha(Math.round(85 + lane.confidence * 150));
         lanePaint.setShadowLayer(dp(4f), 0f, 0f, color);
         Path path = new Path();
         path.moveTo(mapX(lane.x[0], scale, offsetX), mapY(lane.y[0], scale, offsetY));
